@@ -66,11 +66,55 @@ class SupabaseStore:
             item_rows.extend(_item_row(item) for item in result.items)
 
         sources_upserted = self._upsert("sources", source_rows, on_conflict="id")
-        items_upserted = self._upsert("news_items", item_rows, on_conflict="guid")
+
+        existing_guids = self._fetch_existing_guids(
+            [row["guid"] for row in item_rows if row.get("guid")]
+        )
+
+        new_item_rows = []
+        existing_item_rows = []
+        for row in item_rows:
+            guid = row.get("guid", "")
+            if guid and guid in existing_guids:
+                existing_status = existing_guids[guid]
+                row_copy = dict(row)
+                if existing_status in ("translated", "failed"):
+                    row_copy["translation_status"] = existing_status
+                existing_item_rows.append(row_copy)
+            else:
+                new_item_rows.append(row)
+
+        items_new = self._upsert("news_items", new_item_rows, on_conflict="guid") if new_item_rows else 0
+        items_existing = self._upsert("news_items", existing_item_rows, on_conflict="guid") if existing_item_rows else 0
+
         return SupabaseWriteStats(
             sources_upserted=sources_upserted,
-            items_upserted=items_upserted,
+            items_upserted=items_new + items_existing,
         )
+
+    def _fetch_existing_guids(self, guids: list[str]) -> dict[str, str]:
+        if not guids:
+            return {}
+
+        batch_size = 100
+        result = {}
+        for i in range(0, len(guids), batch_size):
+            batch = guids[i:i + batch_size]
+            filter_value = ",".join(f'"{g}"' for g in batch)
+            endpoint = f"{self.url}/rest/v1/news_items"
+            response = self.session.get(
+                endpoint,
+                params={
+                    "select": "guid,translation_status",
+                    "guid": f"in.({filter_value})",
+                },
+                headers=self._headers(),
+                timeout=self.timeout_seconds,
+            )
+            response.raise_for_status()
+            for row in response.json():
+                result[row["guid"]] = row.get("translation_status", "pending")
+        return result
 
     def _upsert(self, table: str, rows: list[dict[str, Any]], *, on_conflict: str) -> int:
         if not rows:

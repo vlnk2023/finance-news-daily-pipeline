@@ -46,9 +46,15 @@ def main() -> None:
     store = SupabaseStore()
     translator = None
     if args.provider == "cloudflare":
-        translator = CloudflareTranslator()
+        try:
+            translator = CloudflareTranslator()
+            print("[TRANSLATE] CloudflareTranslator initialized OK")
+        except Exception as exc:
+            print(f"[TRANSLATE] CloudflareTranslator init FAILED: {exc}")
+            logging.error("CloudflareTranslator init failed: %s", exc)
 
     items = store.fetch_pending_translation_items(limit=args.limit)
+    print(f"[TRANSLATE] fetched {len(items)} pending items from Supabase")
     stats = {
         "fetched": len(items),
         "zh_completed": 0,
@@ -109,6 +115,11 @@ def main() -> None:
 
         store.update_news_item(item["id"], fields)
 
+    print(
+        f"[TRANSLATE] done fetched={stats['fetched']} zh_completed={stats['zh_completed']} "
+        f"cloudflare_translated={stats['cloudflare_translated']} cache_hits={stats['cache_hits']} "
+        f"failed={stats['failed']} pending_external={stats['pending_external']}"
+    )
     logging.info(
         (
             "translation processed fetched=%s zh_completed=%s cache_hits=%s "

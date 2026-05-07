@@ -60,20 +60,25 @@ def main() -> None:
         end_at=end_at.isoformat(),
         limit=args.limit,
     )
+    print(f"[DIGEST] date={digest_date} start={start_at.isoformat()} end={end_at.isoformat()} translated_items={len(items)}")
     digest = build_digest(digest_date, items)
     if args.provider == "cloudflare" and items:
         try:
             generator = CloudflareTextGenerator()
+            print(f"[DIGEST] LLM model={generator.model}")
             digest = build_llm_digest(
                 digest_date,
                 items[: args.llm_limit],
                 generator=generator,
                 fallback_digest=digest,
             )
+            print(f"[DIGEST] LLM digest generated OK, length={len(digest['markdown'])}")
         except Exception as exc:
             logging.exception("LLM digest generation failed; using rule-based fallback: %s", exc)
+            print(f"[DIGEST] LLM FAILED, using rule-based fallback: {exc}")
 
     store.upsert_daily_digest(digest)
+    print(f"[DIGEST] upserted daily_digest date={digest_date} model={digest['model']}")
     print(
         json.dumps(
             {

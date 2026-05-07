@@ -65,12 +65,18 @@ def main() -> None:
     else:
         results = CollectionRunner().collect_feeds(feeds)
 
+    total_fetched = sum(r.fetched_count for r in results if not isinstance(r, FeedCollectionError))
+    total_returned = sum(r.returned_count for r in results if not isinstance(r, FeedCollectionError))
+    total_duplicates = sum(r.duplicate_count for r in results if not isinstance(r, FeedCollectionError))
+    print(f"[COLLECT] feeds={len(feeds)} results={len(results)} total_fetched={total_fetched} total_returned={total_returned} total_duplicates={total_duplicates}")
+
     successful_results = [
         result for result in results if not isinstance(result, FeedCollectionError)
     ]
     if args.write_supabase:
         feeds_by_id = {feed["feed_id"]: feed for feed in feeds}
         stats = SupabaseStore().upsert_results(successful_results, feeds_by_id=feeds_by_id)
+        print(f"[COLLECT] Supabase write complete sources={stats.sources_upserted} items={stats.items_upserted}")
         logging.info(
             "Supabase write complete sources=%s items=%s",
             stats.sources_upserted,
