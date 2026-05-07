@@ -9,7 +9,7 @@ import requests
 
 
 DEFAULT_MODEL = "@cf/meta/m2m100-1.2b"
-DEFAULT_TEXT_MODEL = "@cf/meta/llama-3.1-8b-instruct"
+DEFAULT_TEXT_MODEL = "@cf/meta/llama-3.1-8b-instruct-fp8-fast"
 LANGUAGE_MAP = {
     "en": "en",
     "ja": "ja",
