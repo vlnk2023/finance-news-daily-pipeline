@@ -52,5 +52,221 @@
       "allow_publish": true,
       "max_public_items_per_day": 5
     }
+  },
+  {
+    "feed_id": "tg_ai_experience_ru",
+    "source_id": "tg_ai_experience_ru",
+    "source_name": "AI Experience Exchange RU",
+    "platform": "telegram",
+    "url": "https://t.me/s/httpsapideepseekcomchatcohaj",
+    "format": "auto",
+    "language_hint": "ru",
+    "tier": "C",
+    "topic_hints": ["ai", "technology"],
+    "region_hints": ["ru"],
+    "enabled": true,
+    "collect": {
+      "runs_per_day": 1,
+      "scheduled_times_local": ["20:00"],
+      "timezone": "Asia/Shanghai",
+      "lookback_hours": null,
+      "max_items_per_run": 10,
+      "timeout_ms": 12000,
+      "retries": 2
+    },
+    "policy": {
+      "filter_policy": "full_text",
+      "allow_publish": true,
+      "max_public_items_per_day": 3
+    }
+  },
+  {
+    "feed_id": "tg_geph_announce",
+    "source_id": "tg_geph_announce",
+    "source_name": "Geph Announcements",
+    "platform": "telegram",
+    "url": "https://t.me/s/gephannounce",
+    "format": "auto",
+    "language_hint": "en",
+    "tier": "C",
+    "topic_hints": ["vpn", "internet-access"],
+    "region_hints": [],
+    "enabled": true,
+    "collect": {
+      "runs_per_day": 1,
+      "scheduled_times_local": ["20:00"],
+      "timezone": "Asia/Shanghai",
+      "lookback_hours": null,
+      "max_items_per_run": 10,
+      "timeout_ms": 12000,
+      "retries": 2
+    },
+    "policy": {
+      "filter_policy": "full_text",
+      "allow_publish": true,
+      "max_public_items_per_day": 3
+    }
+  },
+  {
+    "feed_id": "tg_bloomberg",
+    "source_id": "tg_bloomberg",
+    "source_name": "Bloomberg",
+    "platform": "telegram",
+    "url": "https://t.me/s/bloomberg",
+    "format": "auto",
+    "language_hint": "en",
+    "tier": "B",
+    "topic_hints": ["business", "markets", "policy"],
+    "region_hints": ["global"],
+    "enabled": true,
+    "collect": {
+      "runs_per_day": 2,
+      "scheduled_times_local": ["08:00", "20:00"],
+      "timezone": "Asia/Shanghai",
+      "lookback_hours": null,
+      "max_items_per_run": 20,
+      "timeout_ms": 12000,
+      "retries": 2
+    },
+    "policy": {
+      "filter_policy": "full_text",
+      "allow_publish": true,
+      "max_public_items_per_day": 5
+    }
+  },
+  {
+    "feed_id": "tg_quanxiaowa",
+    "source_id": "tg_quanxiaowa",
+    "source_name": "Quanxiaowa",
+    "platform": "telegram",
+    "url": "https://t.me/s/quanxiaowa",
+    "format": "auto",
+    "language_hint": "zh",
+    "tier": "B",
+    "topic_hints": ["cybersecurity", "technology"],
+    "region_hints": ["cn"],
+    "enabled": true,
+    "collect": {
+      "runs_per_day": 1,
+      "scheduled_times_local": ["20:00"],
+      "timezone": "Asia/Shanghai",
+      "lookback_hours": null,
+      "max_items_per_run": 20,
+      "timeout_ms": 12000,
+      "retries": 2
+    },
+    "policy": {
+      "filter_policy": "full_text",
+      "allow_publish": true,
+      "max_public_items_per_day": 5
+    }
+  },
+  {
+    "feed_id": "tg_geekshare",
+    "source_id": "tg_geekshare",
+    "source_name": "Geekshare",
+    "platform": "telegram",
+    "url": "https://t.me/s/geekshare",
+    "format": "auto",
+    "language_hint": "zh",
+    "tier": "C",
+    "topic_hints": ["technology", "software"],
+    "region_hints": ["cn"],
+    "enabled": true,
+    "collect": {
+      "runs_per_day": 1,
+      "scheduled_times_local": ["20:00"],
+      "timezone": "Asia/Shanghai",
+      "lookback_hours": null,
+      "max_items_per_run": 20,
+      "timeout_ms": 12000,
+      "retries": 2
+    },
+    "policy": {
+      "filter_policy": "full_text",
+      "allow_publish": true,
+      "max_public_items_per_day": 5
+    }
+  },
+  {
+    "feed_id": "tg_bloombergs",
+    "source_id": "tg_bloombergs",
+    "source_name": "Bloombergs",
+    "platform": "telegram",
+    "url": "https://t.me/s/bloombergs",
+    "format": "auto",
+    "language_hint": "en",
+    "tier": "C",
+    "topic_hints": ["business", "markets"],
+    "region_hints": ["global"],
+    "enabled": true,
+    "collect": {
+      "runs_per_day": 1,
+      "scheduled_times_local": ["20:00"],
+      "timezone": "Asia/Shanghai",
+      "lookback_hours": null,
+      "max_items_per_run": 10,
+      "timeout_ms": 12000,
+      "retries": 2
+    },
+    "policy": {
+      "filter_policy": "full_text",
+      "allow_publish": true,
+      "max_public_items_per_day": 3
+    }
+  },
+  {
+    "feed_id": "tg_bloombergu",
+    "source_id": "tg_bloombergu",
+    "source_name": "BloombergU",
+    "platform": "telegram",
+    "url": "https://t.me/s/bloombergu",
+    "format": "auto",
+    "language_hint": "ru",
+    "tier": "B",
+    "topic_hints": ["business", "markets", "energy"],
+    "region_hints": ["global", "ru"],
+    "enabled": true,
+    "collect": {
+      "runs_per_day": 2,
+      "scheduled_times_local": ["08:00", "20:00"],
+      "timezone": "Asia/Shanghai",
+      "lookback_hours": 48,
+      "max_items_per_run": 20,
+      "timeout_ms": 12000,
+      "retries": 2
+    },
+    "policy": {
+      "filter_policy": "full_text",
+      "allow_publish": true,
+      "max_public_items_per_day": 5
+    }
+  },
+  {
+    "feed_id": "tg_bloombergq",
+    "source_id": "tg_bloombergq",
+    "source_name": "BloombergQ",
+    "platform": "telegram",
+    "url": "https://t.me/s/BloombergQ",
+    "format": "auto",
+    "language_hint": "en",
+    "tier": "C",
+    "topic_hints": ["business", "markets", "india"],
+    "region_hints": ["in"],
+    "enabled": true,
+    "collect": {
+      "runs_per_day": 1,
+      "scheduled_times_local": ["20:00"],
+      "timezone": "Asia/Shanghai",
+      "lookback_hours": null,
+      "max_items_per_run": 20,
+      "timeout_ms": 12000,
+      "retries": 2
+    },
+    "policy": {
+      "filter_policy": "full_text",
+      "allow_publish": true,
+      "max_public_items_per_day": 5
+    }
   }
 ]
