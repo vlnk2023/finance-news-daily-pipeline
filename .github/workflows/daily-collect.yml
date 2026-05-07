@@ -39,3 +39,6 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Keep Hugging Face Space Awake
+        run: curl -s -o /dev/null https://phily23-trans26.hf.space
