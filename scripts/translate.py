@@ -1,14 +1,11 @@
-"""Advance news item translation state in Supabase.
-
-This first version provides the pipeline state machine: Chinese items are copied
-into the normalized Chinese fields, while non-Chinese items are tagged with a
-detected language and left pending for a later external translation engine.
-"""
+"""Translate pending news items and update normalized Chinese fields."""
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -20,11 +17,24 @@ if hasattr(sys.stdout, "reconfigure"):
 
 from collector.storage.supabase_store import SupabaseStore
 from collector.translation import detect_language, is_chinese
+from collector.translation.cloudflare import (
+    DEFAULT_MODEL,
+    CloudflareTranslationError,
+    CloudflareTranslator,
+)
+
+
+TARGET_LANG = "zh"
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Process pending news item translations.")
     parser.add_argument("--limit", type=int, default=200)
+    parser.add_argument(
+        "--provider",
+        choices=["cloudflare", "state-only"],
+        default=os.environ.get("TRANSLATION_PROVIDER", "cloudflare"),
+    )
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
 
@@ -34,14 +44,25 @@ def main() -> None:
     )
 
     store = SupabaseStore()
+    translator = None
+    if args.provider == "cloudflare":
+        translator = CloudflareTranslator()
+
     items = store.fetch_pending_translation_items(limit=args.limit)
-    stats = {"fetched": len(items), "zh_completed": 0, "pending_external": 0}
+    stats = {
+        "fetched": len(items),
+        "zh_completed": 0,
+        "cache_hits": 0,
+        "cloudflare_translated": 0,
+        "pending_external": 0,
+        "failed": 0,
+    }
 
     for item in items:
         text = "\n".join(
             part for part in [item.get("title") or "", item.get("summary") or ""] if part
         )
-        source_lang = detect_language(text)
+        source_lang = item.get("source_lang") or detect_language(text)
         fields = {"source_lang": source_lang}
         if is_chinese(source_lang):
             fields.update(
@@ -53,16 +74,93 @@ def main() -> None:
             )
             stats["zh_completed"] += 1
         else:
-            stats["pending_external"] += 1
+            if translator is None:
+                stats["pending_external"] += 1
+            else:
+                try:
+                    fields.update(
+                        {
+                            "title_zh": _translate_text(
+                                store,
+                                translator,
+                                item.get("title") or "",
+                                source_lang=source_lang,
+                                stats=stats,
+                            ),
+                            "summary_zh": _translate_text(
+                                store,
+                                translator,
+                                item.get("summary") or "",
+                                source_lang=source_lang,
+                                stats=stats,
+                            ),
+                            "translation_status": "translated",
+                        }
+                    )
+                    stats["cloudflare_translated"] += 1
+                except Exception as exc:
+                    logging.exception("translation failed guid=%s", item.get("guid"))
+                    fields.update(
+                        {
+                            "translation_status": "failed",
+                        }
+                    )
+                    stats["failed"] += 1
 
         store.update_news_item(item["id"], fields)
 
     logging.info(
-        "translation state processed fetched=%s zh_completed=%s pending_external=%s",
+        (
+            "translation processed fetched=%s zh_completed=%s cache_hits=%s "
+            "cloudflare_translated=%s pending_external=%s failed=%s"
+        ),
         stats["fetched"],
         stats["zh_completed"],
+        stats["cache_hits"],
+        stats["cloudflare_translated"],
         stats["pending_external"],
+        stats["failed"],
     )
+
+
+def _translate_text(
+    store: SupabaseStore,
+    translator: CloudflareTranslator,
+    text: str,
+    *,
+    source_lang: str,
+    stats: dict[str, int],
+) -> str:
+    normalized = (text or "").strip()
+    if not normalized:
+        return ""
+
+    source_hash = _text_hash(normalized, source_lang, TARGET_LANG)
+    cached = store.fetch_translation(source_hash)
+    if cached:
+        stats["cache_hits"] += 1
+        return cached["translated_text"]
+
+    translated = translator.translate(
+        normalized,
+        source_lang=source_lang,
+        target_lang=TARGET_LANG,
+    )
+    store.upsert_translation(
+        source_hash=source_hash,
+        source_lang=source_lang,
+        target_lang="zh-Hans",
+        source_text=normalized,
+        translated_text=translated,
+        provider="cloudflare",
+        model=os.environ.get("CLOUDFLARE_TRANSLATION_MODEL") or DEFAULT_MODEL,
+    )
+    return translated
+
+
+def _text_hash(text: str, source_lang: str, target_lang: str) -> str:
+    canonical = f"{source_lang}\n{target_lang}\n{text.strip()}"
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 if __name__ == "__main__":

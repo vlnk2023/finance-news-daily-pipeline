@@ -37,3 +37,7 @@ Then process the first translation state pass:
 ```bash
 python scripts/translate.py
 ```
+
+Non-Chinese items are translated with Cloudflare Workers AI
+`@cf/meta/m2m100-1.2b` when `CLOUDFLARE_ACCOUNT_ID` and
+`CLOUDFLARE_API_TOKEN` are configured.

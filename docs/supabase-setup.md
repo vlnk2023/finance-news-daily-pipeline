@@ -73,9 +73,16 @@ The workflow template lives at:
 The workflow currently runs:
 
 ```text
-collect -> write Supabase -> process translation state
+collect -> write Supabase -> translate pending items
 ```
 
 `scripts/translate.py` copies Chinese items into `title_zh` and `summary_zh`.
-Non-Chinese items are tagged with `source_lang` and left as `pending` for the
-next translation engine phase.
+Non-Chinese items are translated through Cloudflare Workers AI
+`@cf/meta/m2m100-1.2b`, with per-text results cached in `translations`.
+
+Add these GitHub repository secrets before running the workflow:
+
+```text
+CLOUDFLARE_ACCOUNT_ID
+CLOUDFLARE_API_TOKEN
+```

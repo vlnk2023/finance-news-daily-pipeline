@@ -99,7 +99,6 @@ class SupabaseStore:
             params={
                 "select": "id,guid,title,summary,source_lang,translation_status",
                 "translation_status": "eq.pending",
-                "source_lang": "is.null",
                 "order": "published_at.desc.nullslast",
                 "limit": str(limit),
             },
@@ -108,6 +107,51 @@ class SupabaseStore:
         )
         response.raise_for_status()
         return response.json()
+
+    def fetch_translation(self, source_hash: str) -> dict[str, Any] | None:
+        endpoint = f"{self.url}/rest/v1/translations"
+        response = self.session.get(
+            endpoint,
+            params={
+                "select": "source_hash,source_lang,target_lang,translated_text,provider,model",
+                "source_hash": f"eq.{source_hash}",
+                "limit": "1",
+            },
+            headers=self._headers(),
+            timeout=self.timeout_seconds,
+        )
+        response.raise_for_status()
+        rows = response.json()
+        return rows[0] if rows else None
+
+    def upsert_translation(
+        self,
+        *,
+        source_hash: str,
+        source_lang: str,
+        target_lang: str,
+        source_text: str,
+        translated_text: str,
+        provider: str,
+        model: str,
+        quality_score: float | None = None,
+    ) -> None:
+        self._upsert(
+            "translations",
+            [
+                {
+                    "source_hash": source_hash,
+                    "source_lang": source_lang,
+                    "target_lang": target_lang,
+                    "source_text": source_text,
+                    "translated_text": translated_text,
+                    "provider": provider,
+                    "model": model,
+                    "quality_score": quality_score,
+                }
+            ],
+            on_conflict="source_hash",
+        )
 
     def update_news_item(self, item_id: str, fields: dict[str, Any]) -> None:
         endpoint = f"{self.url}/rest/v1/news_items"
