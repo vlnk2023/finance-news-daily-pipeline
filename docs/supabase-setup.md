@@ -74,11 +74,14 @@ The workflow currently runs:
 
 ```text
 collect -> write Supabase -> translate pending items
+  -> generate daily digest
 ```
 
 `scripts/translate.py` copies Chinese items into `title_zh` and `summary_zh`.
 Non-Chinese items are translated through Cloudflare Workers AI
 `@cf/meta/m2m100-1.2b`, with per-text results cached in `translations`.
+`scripts/generate_digest.py` writes a rule-based Markdown digest into
+`daily_digests`.
 
 Add these GitHub repository secrets before running the workflow:
 

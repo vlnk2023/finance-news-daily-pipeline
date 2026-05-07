@@ -41,3 +41,9 @@ python scripts/translate.py
 Non-Chinese items are translated with Cloudflare Workers AI
 `@cf/meta/m2m100-1.2b` when `CLOUDFLARE_ACCOUNT_ID` and
 `CLOUDFLARE_API_TOKEN` are configured.
+
+Generate a rule-based daily digest:
+
+```bash
+python scripts/generate_digest.py
+```

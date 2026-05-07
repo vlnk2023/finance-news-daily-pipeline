@@ -169,6 +169,37 @@ class SupabaseStore:
         )
         response.raise_for_status()
 
+    def fetch_digest_items(
+        self,
+        *,
+        start_at: str,
+        end_at: str,
+        limit: int = 200,
+    ) -> list[dict[str, Any]]:
+        endpoint = f"{self.url}/rest/v1/news_items"
+        response = self.session.get(
+            endpoint,
+            params=[
+                (
+                    "select",
+                    "guid,source_id,source_lang,title,title_zh,summary,summary_zh,"
+                    "url,external_url,published_at,translation_status",
+                ),
+                ("published_at", f"gte.{start_at}"),
+                ("published_at", f"lt.{end_at}"),
+                ("translation_status", "eq.translated"),
+                ("order", "published_at.asc.nullslast"),
+                ("limit", str(limit)),
+            ],
+            headers=self._headers(),
+            timeout=self.timeout_seconds,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def upsert_daily_digest(self, row: dict[str, Any]) -> None:
+        self._upsert("daily_digests", [row], on_conflict="digest_date")
+
     def _headers(self) -> dict[str, str]:
         return {
             "apikey": self.service_role_key,
