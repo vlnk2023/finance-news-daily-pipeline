@@ -1,9 +1,11 @@
-"""Generate a rule-based Chinese daily digest from translated news items."""
+"""Generate a Chinese daily digest from translated news items."""
 
 from __future__ import annotations
 
 import argparse
 import json
+import logging
+import os
 import sys
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
@@ -16,6 +18,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 from collector.storage.supabase_store import SupabaseStore
+from collector.translation.cloudflare import DEFAULT_TEXT_MODEL, CloudflareTextGenerator
 
 
 DEFAULT_TIMEZONE = "Asia/Shanghai"
@@ -33,7 +36,19 @@ def main() -> None:
     parser.add_argument("--date", help="Digest date in YYYY-MM-DD. Defaults to local today.")
     parser.add_argument("--timezone", default=DEFAULT_TIMEZONE)
     parser.add_argument("--limit", type=int, default=200)
+    parser.add_argument("--llm-limit", type=int, default=80)
+    parser.add_argument(
+        "--provider",
+        choices=["cloudflare", "rule-based"],
+        default=os.environ.get("DIGEST_PROVIDER", "cloudflare"),
+    )
+    parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
+
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
 
     tz = ZoneInfo(args.timezone)
     digest_date = date.fromisoformat(args.date) if args.date else datetime.now(tz).date()
@@ -46,8 +61,29 @@ def main() -> None:
         limit=args.limit,
     )
     digest = build_digest(digest_date, items)
+    if args.provider == "cloudflare" and items:
+        try:
+            generator = CloudflareTextGenerator()
+            digest = build_llm_digest(
+                digest_date,
+                items[: args.llm_limit],
+                generator=generator,
+                fallback_digest=digest,
+            )
+        except Exception as exc:
+            logging.exception("LLM digest generation failed; using rule-based fallback: %s", exc)
+
     store.upsert_daily_digest(digest)
-    print(json.dumps({"digest_date": str(digest_date), "items": len(items)}, ensure_ascii=False))
+    print(
+        json.dumps(
+            {
+                "digest_date": str(digest_date),
+                "items": len(items),
+                "model": digest["model"],
+            },
+            ensure_ascii=False,
+        )
+    )
 
 
 def build_digest(digest_date: date, items: list[dict[str, str]]) -> dict[str, object]:
@@ -91,6 +127,83 @@ def build_digest(digest_date: date, items: list[dict[str, str]]) -> dict[str, ob
         "json_summary": json_summary,
         "model": "rule-based-v1",
     }
+
+
+def build_llm_digest(
+    digest_date: date,
+    items: list[dict[str, str]],
+    *,
+    generator: CloudflareTextGenerator,
+    fallback_digest: dict[str, object],
+) -> dict[str, object]:
+    prompt = _llm_prompt(digest_date, items, fallback_digest)
+    markdown = generator.generate(
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "你是严谨的中文财经与科技新闻编辑。"
+                    "请只输出中文 Markdown，不要编造输入中不存在的事实。"
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ],
+        max_tokens=1800,
+        temperature=0.2,
+    ).strip()
+
+    if not markdown.startswith("#"):
+        markdown = f"# {digest_date.isoformat()} 财经新闻日报\n\n{markdown}"
+
+    json_summary = {
+        **fallback_digest["json_summary"],
+        "provider": "cloudflare",
+        "llm_item_count": len(items),
+    }
+    return {
+        "digest_date": digest_date.isoformat(),
+        "title": f"{digest_date.isoformat()} 财经新闻日报",
+        "markdown": markdown,
+        "json_summary": json_summary,
+        "model": f"cloudflare:{os.environ.get('CLOUDFLARE_DIGEST_MODEL') or DEFAULT_TEXT_MODEL}",
+    }
+
+
+def _llm_prompt(
+    digest_date: date,
+    items: list[dict[str, str]],
+    fallback_digest: dict[str, object],
+) -> str:
+    lines = [
+        f"请基于以下新闻生成 {digest_date.isoformat()} 的中文日报。",
+        "",
+        "输出要求：",
+        "- 使用 Markdown。",
+        "- 包含标题、今日总览、重点新闻、市场与宏观、科技与网络安全、风险提示、值得继续关注。",
+        "- 每条结论尽量引用来源标题或链接。",
+        "- 不要写免责声明，不要输出英文栏目名。",
+        "- 如果某栏目没有足够信息，可以简短说明。",
+        "",
+        "规则版日报草稿如下，可作为参考，但请压缩重复信息并提升可读性：",
+        str(fallback_digest["markdown"])[:3500],
+        "",
+        "结构化新闻输入：",
+    ]
+    for index, item in enumerate(items, start=1):
+        title = item.get("title_zh") or item.get("title") or "未命名新闻"
+        summary = item.get("summary_zh") or item.get("summary") or ""
+        source = item.get("source_id") or ""
+        link = item.get("external_url") or item.get("url") or ""
+        published_at = item.get("published_at") or ""
+        lines.append(
+            (
+                f"{index}. [{source}] {title}\n"
+                f"   时间：{published_at}\n"
+                f"   摘要：{_compact(summary, 260)}\n"
+                f"   链接：{link}"
+            )
+        )
+    return "\n".join(lines)
 
 
 def _utc_bounds(digest_date: date, tz: ZoneInfo) -> tuple[datetime, datetime]:

@@ -28,17 +28,19 @@ Completed:
 
 Current important commits:
 
-- `03c7930` Add Supabase pipeline storage
-- `1f8798d` Add Cloudflare translation provider
-- `13997bd` Add rule based daily digest
-- `dd76a54` Add static digest frontend
+- `f20f321` Add Chinese architecture diagrams
+- `fcb4cfd` Add system handoff documentation
 - `7ac8a3a` Add requested Telegram feeds
+- `cd7b362` Add GitHub Pages web deploy
+- `13997bd` Add rule based daily digest
+- `1f8798d` Add Cloudflare translation provider
+- `03c7930` Add Supabase pipeline storage
 
 ## Remaining Work
 
 Priority next steps:
 
-1. Improve digest quality with an LLM summarizer instead of the current rule-based digest.
+1. Improve digest quality with an LLM summarizer; Cloudflare LLM support is scaffolded with rule-based fallback.
 2. Add source quality scoring and per-source filtering to reduce noise.
 3. Add frontend filters: date, source, keyword, category.
 4. Add pipeline run logging into `pipeline_runs`.
