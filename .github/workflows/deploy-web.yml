@@ -1,0 +1,52 @@
+name: Deploy Digest Web
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "web/**"
+      - ".github/workflows/deploy-web.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate frontend config
+        run: |
+          cat > web/config.js <<'EOF'
+          window.FINANCE_DIGEST_CONFIG = {
+            supabaseUrl: "${{ secrets.SUPABASE_URL }}",
+            supabaseAnonKey: "${{ secrets.SUPABASE_PUBLISHABLE_KEY }}",
+          };
+          EOF
+
+      - name: Validate frontend config
+        run: |
+          test -n "${{ secrets.SUPABASE_URL }}"
+          test -n "${{ secrets.SUPABASE_PUBLISHABLE_KEY }}"
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

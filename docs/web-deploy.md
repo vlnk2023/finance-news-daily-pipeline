@@ -31,6 +31,35 @@ http://127.0.0.1:8787
 
 ## Deploy
 
+GitHub Pages:
+
+1. Add repository secret:
+
+```text
+SUPABASE_PUBLISHABLE_KEY
+```
+
+Use the Supabase publishable key or legacy anon key. Do not use
+`sb_secret_...`.
+
+2. In GitHub, open:
+
+```text
+Settings -> Pages -> Build and deployment -> Source
+```
+
+Select:
+
+```text
+GitHub Actions
+```
+
+3. Run:
+
+```text
+Actions -> Deploy Digest Web -> Run workflow
+```
+
 Vercel:
 
 - Framework Preset: `Other`
