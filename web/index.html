@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>财经新闻日报</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>财经新闻日报</h1>
+        <p>Daily digest generated from the finance news pipeline.</p>
+      </div>
+      <button id="refreshButton" type="button">刷新</button>
+    </header>
+
+    <main class="layout">
+      <aside class="sidebar">
+        <div class="panel">
+          <h2>历史日报</h2>
+          <div id="digestList" class="digest-list"></div>
+        </div>
+      </aside>
+
+      <section class="content">
+        <div id="status" class="status">加载中...</div>
+        <article id="digest" class="digest"></article>
+      </section>
+    </main>
+
+    <script src="./config.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>

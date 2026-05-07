@@ -47,3 +47,5 @@ Generate a rule-based daily digest:
 ```bash
 python scripts/generate_digest.py
 ```
+
+The static frontend lives in `web/`. See `docs/web-deploy.md`.

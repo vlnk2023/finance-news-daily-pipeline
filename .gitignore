@@ -6,5 +6,6 @@ __pycache__/
 finance_news_daily_collector/
 pytest-cache-files-*/
 gradio.*.log
+web/config.js
 *.sqlite3
 *.db
