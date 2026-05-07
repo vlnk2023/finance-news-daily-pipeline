@@ -25,6 +25,32 @@
       "allow_publish": true,
       "max_public_items_per_day": 5
     }
+  },
+  {
+    "feed_id": "tg_discord_bypass",
+    "source_id": "tg_discord_bypass",
+    "source_name": "Discord Bypass",
+    "platform": "telegram",
+    "url": "https://t.me/s/discord_bypass",
+    "format": "auto",
+    "language_hint": "ru",
+    "tier": "C",
+    "topic_hints": ["vpn", "telegram", "internet-access"],
+    "region_hints": ["ru"],
+    "enabled": true,
+    "collect": {
+      "runs_per_day": 2,
+      "scheduled_times_local": ["08:00", "20:00"],
+      "timezone": "Asia/Shanghai",
+      "lookback_hours": null,
+      "max_items_per_run": 20,
+      "timeout_ms": 12000,
+      "retries": 2
+    },
+    "policy": {
+      "filter_policy": "full_text",
+      "allow_publish": true,
+      "max_public_items_per_day": 5
+    }
   }
 ]
-
