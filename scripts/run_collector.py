@@ -1,0 +1,99 @@
+"""Run one-shot Telegram collection from the feed registry."""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import logging
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
+from collector.config import load_enabled_feeds
+from collector.async_runner import AsyncCollectionRunner, FeedCollectionError
+from collector.runner import CollectionRunner
+
+
+DEFAULT_REGISTRY_PATH = PROJECT_ROOT / "src/config/feed-registry.json"
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Run Telegram feed collection once.")
+    parser.add_argument("--registry", default=str(DEFAULT_REGISTRY_PATH))
+    parser.add_argument("--feed-id", help="Collect only one feed_id.")
+    parser.add_argument(
+        "--async",
+        dest="run_async",
+        action="store_true",
+        help="Collect feeds concurrently.",
+    )
+    parser.add_argument("--max-concurrency", type=int, default=5)
+    parser.add_argument("--json", action="store_true", help="Print collected items as JSON.")
+    parser.add_argument(
+        "--results-json",
+        action="store_true",
+        help="Print full collection results as JSON.",
+    )
+    parser.add_argument("--verbose", action="store_true", help="Enable debug logs.")
+    args = parser.parse_args()
+
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
+
+    feeds = load_enabled_feeds(args.registry, platform="telegram")
+    if args.feed_id:
+        feeds = [feed for feed in feeds if feed.get("feed_id") == args.feed_id]
+
+    if args.run_async:
+        results = asyncio.run(
+            AsyncCollectionRunner(max_concurrency=args.max_concurrency).collect_feeds(feeds)
+        )
+    else:
+        results = CollectionRunner().collect_feeds(feeds)
+
+    if args.results_json:
+        print(
+            json.dumps(
+                [result.to_dict() for result in results],
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return
+
+    if args.json:
+        items = [
+            item
+            for result in results
+            if not isinstance(result, FeedCollectionError)
+            for item in result.items
+        ]
+        print(json.dumps(items, ensure_ascii=False, indent=2))
+        return
+
+    for result in results:
+        if isinstance(result, FeedCollectionError):
+            print(f"{result.feed_id}: failed error={result.error}")
+            continue
+        print(
+            f"{result.feed_id}: fetched={result.fetched_count} "
+            f"returned={result.returned_count} duplicates={result.duplicate_count} "
+            f"elapsed_ms={result.elapsed_ms} attempts={result.attempts}"
+        )
+        for item in result.items:
+            print(item["title"])
+            print(item["pub_str"])
+            print(item["url"])
+            print("---")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.cache/
+.tmp/
+finance_news_daily_collector/
+pytest-cache-files-*/
+gradio.*.log
+*.sqlite3
+*.db
