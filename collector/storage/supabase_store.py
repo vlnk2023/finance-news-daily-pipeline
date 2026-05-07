@@ -92,6 +92,45 @@ class SupabaseStore:
         response.raise_for_status()
         return len(rows)
 
+    def fetch_pending_translation_items(self, *, limit: int = 200) -> list[dict[str, Any]]:
+        endpoint = f"{self.url}/rest/v1/news_items"
+        response = self.session.get(
+            endpoint,
+            params={
+                "select": "id,guid,title,summary,source_lang,translation_status",
+                "translation_status": "eq.pending",
+                "source_lang": "is.null",
+                "order": "published_at.desc.nullslast",
+                "limit": str(limit),
+            },
+            headers=self._headers(),
+            timeout=self.timeout_seconds,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def update_news_item(self, item_id: str, fields: dict[str, Any]) -> None:
+        endpoint = f"{self.url}/rest/v1/news_items"
+        payload = {**fields, "updated_at": _now_iso()}
+        response = self.session.patch(
+            endpoint,
+            params={"id": f"eq.{item_id}"},
+            headers={
+                **self._headers(),
+                "content-type": "application/json",
+                "prefer": "return=minimal",
+            },
+            data=json.dumps(payload, ensure_ascii=False),
+            timeout=self.timeout_seconds,
+        )
+        response.raise_for_status()
+
+    def _headers(self) -> dict[str, str]:
+        return {
+            "apikey": self.service_role_key,
+            "authorization": f"Bearer {self.service_role_key}",
+        }
+
 
 def _source_row(result: FeedCollectionResult, feed: dict[str, Any]) -> dict[str, Any]:
     return {

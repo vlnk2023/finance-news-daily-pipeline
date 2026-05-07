@@ -69,3 +69,13 @@ The workflow template lives at:
 ```text
 .github/workflows/daily-collect.yml
 ```
+
+The workflow currently runs:
+
+```text
+collect -> write Supabase -> process translation state
+```
+
+`scripts/translate.py` copies Chinese items into `title_zh` and `summary_zh`.
+Non-Chinese items are tagged with `source_lang` and left as `pending` for the
+next translation engine phase.

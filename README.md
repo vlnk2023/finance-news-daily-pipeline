@@ -31,3 +31,9 @@ To write collected items into Supabase, run the schema in
 ```bash
 python scripts/run_collector.py --feed-id tg_finance_news_daily --write-supabase
 ```
+
+Then process the first translation state pass:
+
+```bash
+python scripts/translate.py
+```
