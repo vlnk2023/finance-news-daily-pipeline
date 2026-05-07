@@ -23,3 +23,11 @@ The underlying collector code is also runnable from the command line:
 ```bash
 python scripts/run_collector.py --feed-id tg_finance_news_daily --json
 ```
+
+To write collected items into Supabase, run the schema in
+`migrations/supabase/0001_pipeline_schema.sql`, set `SUPABASE_URL` and
+`SUPABASE_SERVICE_ROLE_KEY`, then run:
+
+```bash
+python scripts/run_collector.py --feed-id tg_finance_news_daily --write-supabase
+```

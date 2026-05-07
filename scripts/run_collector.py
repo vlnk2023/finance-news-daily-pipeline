@@ -18,6 +18,7 @@ if hasattr(sys.stdout, "reconfigure"):
 from collector.config import load_enabled_feeds
 from collector.async_runner import AsyncCollectionRunner, FeedCollectionError
 from collector.runner import CollectionRunner
+from collector.storage.supabase_store import SupabaseStore
 
 
 DEFAULT_REGISTRY_PATH = PROJECT_ROOT / "src/config/feed-registry.json"
@@ -40,6 +41,11 @@ def main() -> None:
         action="store_true",
         help="Print full collection results as JSON.",
     )
+    parser.add_argument(
+        "--write-supabase",
+        action="store_true",
+        help="Upsert successful collection results into Supabase.",
+    )
     parser.add_argument("--verbose", action="store_true", help="Enable debug logs.")
     args = parser.parse_args()
 
@@ -59,6 +65,18 @@ def main() -> None:
     else:
         results = CollectionRunner().collect_feeds(feeds)
 
+    successful_results = [
+        result for result in results if not isinstance(result, FeedCollectionError)
+    ]
+    if args.write_supabase:
+        feeds_by_id = {feed["feed_id"]: feed for feed in feeds}
+        stats = SupabaseStore().upsert_results(successful_results, feeds_by_id=feeds_by_id)
+        logging.info(
+            "Supabase write complete sources=%s items=%s",
+            stats.sources_upserted,
+            stats.items_upserted,
+        )
+
     if args.results_json:
         print(
             json.dumps(
@@ -72,8 +90,7 @@ def main() -> None:
     if args.json:
         items = [
             item
-            for result in results
-            if not isinstance(result, FeedCollectionError)
+            for result in successful_results
             for item in result.items
         ]
         print(json.dumps(items, ensure_ascii=False, indent=2))
