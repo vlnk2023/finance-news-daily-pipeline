@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 from collector.storage import MessageStore, SpoolStore, open_sqlite
@@ -51,13 +52,13 @@ class SQLiteStorageTest(unittest.TestCase):
             self.assertEqual(applied_spool, ["0001_init"])
             self.assertEqual(applied_messages_again, [])
 
-            with open_sqlite(messages_db, readonly=True) as conn:
+            with closing(open_sqlite(messages_db, readonly=True)) as conn:
                 self.assertIsNotNone(
                     conn.execute(
                         "SELECT name FROM sqlite_master WHERE name = 'telegram_messages'"
                     ).fetchone()
                 )
-            with open_sqlite(spool_db, readonly=True) as conn:
+            with closing(open_sqlite(spool_db, readonly=True)) as conn:
                 self.assertIsNotNone(
                     conn.execute(
                         "SELECT name FROM sqlite_master WHERE name = 'ingest_spool'"
@@ -121,10 +122,11 @@ class SQLiteStorageTest(unittest.TestCase):
             store = MessageStore(messages_db)
             store.insert_messages([sample_item("300")])
 
-            with open_sqlite(messages_db) as conn:
-                conn.execute(
-                    "UPDATE telegram_messages SET fts_indexed = 0 WHERE message_id = '300'"
-                )
+            with closing(open_sqlite(messages_db)) as conn:
+                with conn:
+                    conn.execute(
+                        "UPDATE telegram_messages SET fts_indexed = 0 WHERE message_id = '300'"
+                    )
 
             indexed, failed = store.index_pending_fts(batch_size=1000)
             message = store.get_by_guid("telegram:tg_finance_news_daily:300")
@@ -135,4 +137,3 @@ class SQLiteStorageTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

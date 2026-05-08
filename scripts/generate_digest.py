@@ -38,6 +38,12 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=200)
     parser.add_argument("--llm-limit", type=int, default=80)
     parser.add_argument(
+        "--use-candidates",
+        action=argparse.BooleanOptionalAction,
+        default=(os.environ.get("DIGEST_USE_CANDIDATES", "1") != "0"),
+        help="Use digest_candidates as the primary daily digest input.",
+    )
+    parser.add_argument(
         "--provider",
         choices=["cloudflare", "rule-based"],
         default=os.environ.get("DIGEST_PROVIDER", "cloudflare"),
@@ -52,15 +58,24 @@ def main() -> None:
 
     tz = ZoneInfo(args.timezone)
     digest_date = date.fromisoformat(args.date) if args.date else datetime.now(tz).date()
-    start_at, end_at = _utc_bounds(digest_date, tz)
-
     store = SupabaseStore()
-    items = store.fetch_digest_items(
-        start_at=start_at.isoformat(),
-        end_at=end_at.isoformat(),
-        limit=args.limit,
-    )
-    print(f"[DIGEST] date={digest_date} start={start_at.isoformat()} end={end_at.isoformat()} translated_items={len(items)}")
+    if args.use_candidates:
+        items = store.fetch_digest_candidate_items(
+            digest_date=digest_date.isoformat(),
+            limit=args.limit,
+        )
+        print(f"[DIGEST] candidate mode date={digest_date} candidate_items={len(items)}")
+    else:
+        start_at, end_at = _utc_bounds(digest_date, tz)
+        items = store.fetch_digest_items(
+            start_at=start_at.isoformat(),
+            end_at=end_at.isoformat(),
+            limit=args.limit,
+        )
+        print(
+            f"[DIGEST] date={digest_date} start={start_at.isoformat()} "
+            f"end={end_at.isoformat()} translated_items={len(items)}"
+        )
     digest = build_digest(digest_date, items)
     if args.provider == "cloudflare" and items:
         try:

@@ -47,6 +47,18 @@ def main() -> None:
     for digest in digests:
         print(f"[STATE]   {digest['digest_date']} model={digest.get('model','?')} generated={digest.get('generated_at','?')}")
 
+    clusters = store.session.get(
+        f"{store.url}/rest/v1/intelligence_clusters",
+        params={"select": "id", "limit": "5000"},
+        headers=store._headers(),
+    ).json()
+    candidates = store.session.get(
+        f"{store.url}/rest/v1/digest_candidates",
+        params={"select": "id", "limit": "5000"},
+        headers=store._headers(),
+    ).json()
+    print(f"[STATE] intelligence_clusters={len(clusters)} digest_candidates={len(candidates)}")
+
     violations = []
     if args.max_pending is not None and pending > args.max_pending:
         violations.append(f"pending={pending} exceeds max_pending={args.max_pending}")
