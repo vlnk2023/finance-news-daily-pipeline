@@ -3,36 +3,87 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>财经新闻日报</title>
+    <title>Finance News Digest</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <header class="topbar">
       <div>
-        <h1>财经新闻日报</h1>
+        <h1>Finance News Digest</h1>
         <p>Daily digest generated from the finance news pipeline.</p>
       </div>
-      <button id="refreshButton" type="button">刷新</button>
+      <button id="refreshButton" type="button">Refresh</button>
     </header>
 
     <main class="layout">
       <aside class="sidebar">
         <div class="panel">
-          <h2>历史日报</h2>
+          <h2>Digest History</h2>
           <div id="digestList" class="digest-list"></div>
         </div>
         <div class="panel">
-          <h2>运行历史</h2>
+          <h2>Pipeline Runs</h2>
           <div id="pipelineRunList" class="run-list"></div>
+        </div>
+        <div class="panel">
+          <h2>Source Health</h2>
+          <div class="panel-tools">
+            <label>
+              Status
+              <select id="sourceHealthFilter">
+                <option value="all">All</option>
+                <option value="healthy_active">healthy_active</option>
+                <option value="healthy_quiet">healthy_quiet</option>
+                <option value="stale">stale</option>
+                <option value="no_data">no_data</option>
+                <option value="unknown">unknown</option>
+                <option value="disabled">disabled</option>
+              </select>
+            </label>
+            <label>
+              Sort
+              <select id="sourceHealthSort">
+                <option value="age_desc">age_hours desc</option>
+                <option value="age_asc">age_hours asc</option>
+                <option value="feed_asc">feed_id asc</option>
+                <option value="status">status group</option>
+              </select>
+            </label>
+          </div>
+          <div id="sourceHealthList" class="source-health-list"></div>
         </div>
       </aside>
 
       <section class="content">
-        <div id="status" class="status">加载中...</div>
-        <section id="digestMetaPanel" class="panel meta-panel">
-          <h2>运行摘要</h2>
-          <div id="digestMeta" class="digest-meta"></div>
+        <div id="status" class="status">Loading...</div>
+        <section class="panel content-header-panel">
+          <div class="content-header">
+            <h2 id="digestTitle" class="digest-title">Daily Digest</h2>
+            <div class="content-header-meta">
+              <span id="generatedAt" class="generated-at">Generated at: -</span>
+              <span id="validationModeBadge" class="mode-badge mode-unknown">mode: -</span>
+            </div>
+          </div>
         </section>
+        <section id="digestMetaPanel" class="panel meta-panel">
+          <h2>Key Metrics</h2>
+          <div class="metric-groups">
+            <section class="metric-group">
+              <h3>Quality</h3>
+              <div id="digestMetaQuality" class="digest-meta"></div>
+            </section>
+            <section class="metric-group">
+              <h3>Delivery</h3>
+              <div id="digestMetaDelivery" class="digest-meta"></div>
+            </section>
+          </div>
+        </section>
+        <details id="clusterPanel" class="panel cluster-panel">
+          <summary>Top Clusters</summary>
+          <div class="cluster-panel-body">
+            <ul id="clusterList" class="cluster-list"></ul>
+          </div>
+        </details>
         <article id="digest" class="digest"></article>
       </section>
     </main>
