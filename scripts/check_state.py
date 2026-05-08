@@ -1,6 +1,7 @@
 """Diagnostic script to inspect current Supabase state."""
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -12,6 +13,11 @@ from collector.storage.supabase_store import SupabaseStore
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Inspect Supabase state and optionally enforce limits.")
+    parser.add_argument("--max-pending", type=int, default=None)
+    parser.add_argument("--max-failed", type=int, default=None)
+    args = parser.parse_args()
+
     store = SupabaseStore()
 
     sources = store.session.get(
@@ -40,6 +46,16 @@ def main() -> None:
     print(f"[STATE] daily_digests={len(digests)}")
     for digest in digests:
         print(f"[STATE]   {digest['digest_date']} model={digest.get('model','?')} generated={digest.get('generated_at','?')}")
+
+    violations = []
+    if args.max_pending is not None and pending > args.max_pending:
+        violations.append(f"pending={pending} exceeds max_pending={args.max_pending}")
+    if args.max_failed is not None and failed > args.max_failed:
+        violations.append(f"failed={failed} exceeds max_failed={args.max_failed}")
+    if violations:
+        for violation in violations:
+            print(f"[STATE][ERROR] {violation}")
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
