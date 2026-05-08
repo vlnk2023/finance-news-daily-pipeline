@@ -20,6 +20,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Pin digest date (Asia/Shanghai)
+        run: echo "DIGEST_DATE=$(TZ=Asia/Shanghai date +%F)" >> "$GITHUB_ENV"
+
       - name: Check DB state BEFORE
         run: python scripts/check_state.py
         env:
@@ -27,25 +30,25 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Collect and write Supabase
-        run: python scripts/run_collector.py --async --max-concurrency 5 --write-supabase --verbose
+        run: python scripts/run_collector.py --date "$DIGEST_DATE" --async --max-concurrency 5 --write-supabase --verbose
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Build intelligence clusters
-        run: python scripts/build_clusters.py
+        run: python scripts/build_clusters.py --date "$DIGEST_DATE"
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Select digest candidates
-        run: python scripts/select_digest_candidates.py --max-candidates 40
+        run: python scripts/select_digest_candidates.py --date "$DIGEST_DATE" --max-candidates 40
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Process translation state
-        run: python scripts/translate.py --candidate-only --candidate-limit 40 --retry-failed --verbose
+        run: python scripts/translate.py --candidate-only --date "$DIGEST_DATE" --candidate-limit 40 --retry-failed --verbose
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -53,7 +56,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
       - name: Generate daily digest
-        run: python scripts/generate_digest.py --use-candidates --verbose
+        run: python scripts/generate_digest.py --date "$DIGEST_DATE" --use-candidates --verbose
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

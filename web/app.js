@@ -209,7 +209,10 @@ async function fetchDigests(config) {
 
 async function fetchPipelineRuns(config) {
   const url = new URL(`${config.supabaseUrl}/rest/v1/pipeline_runs`);
-  url.searchParams.set("select", "job_type,status,started_at,finished_at,stats,error");
+  url.searchParams.set(
+    "select",
+    "job_type,status,started_at,finished_at,stats,error,digest_date:stats->>digest_date"
+  );
   url.searchParams.set("order", "started_at.desc");
   url.searchParams.set("limit", "20");
   const response = await fetch(url, {
@@ -365,7 +368,7 @@ function findLastChainSuccess(runs) {
       continue;
     }
     const stats = normalizeStats(run.stats);
-    const digestDate = String(stats.digest_date || "").trim();
+    const digestDate = String(run.digest_date || stats.digest_date || "").trim();
     const job = String(run.job_type || "").trim();
     if (!digestDate || !CHAIN_JOBS.includes(job)) {
       continue;
