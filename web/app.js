@@ -3,6 +3,7 @@ const state = {
   pipelineRuns: [],
   selectedDate: null,
 };
+const CHAIN_JOBS = ["collect", "build_clusters", "select_candidates", "translate", "generate_digest"];
 
 const statusEl = document.getElementById("status");
 const digestEl = document.getElementById("digest");
@@ -83,20 +84,40 @@ function renderPipelineRuns() {
     pipelineRunListEl.textContent = "暂无运行记录";
     return;
   }
+  const summaryEl = document.createElement("div");
+  summaryEl.className = "run-summary";
+  summaryEl.innerHTML = buildRunSummaryHtml(state.pipelineRuns);
+  pipelineRunListEl.appendChild(summaryEl);
+
   for (const run of state.pipelineRuns) {
     const item = document.createElement("div");
     item.className = "run-item";
     const status = String(run.status || "").toLowerCase() === "success" ? "success" : "failed";
     const elapsedMs = extractElapsedMs(run);
+    const stats = normalizeStats(run.stats);
+    const digestDate = stats.digest_date || "-";
+    const coverage = firstNumeric(stats.candidate_coverage, stats.candidate_translated_coverage);
+    const candidateCount = firstNumeric(stats.candidate_count, stats.fetched);
+    const extra = [
+      `date=${digestDate}`,
+      `耗时=${formatDurationMs(elapsedMs)}`,
+      `候选=${formatMaybeNumber(candidateCount)}`,
+      `覆盖=${formatPercent(coverage)}`,
+    ].join(" · ");
+    const rerunHint = status === "failed" ? buildRerunHint(run, stats) : "";
     item.innerHTML = `
       <div class="run-item-head">
         <span class="run-item-title">${escapeHtml(String(run.job_type || "unknown"))}</span>
         <span class="run-badge ${status}">${status === "success" ? "OK" : "FAIL"}</span>
       </div>
       <div class="run-item-meta">
-        ${escapeHtml(formatDateTime(run.started_at))} · ${escapeHtml(formatDurationMs(elapsedMs))}
+        ${escapeHtml(formatDateTime(run.started_at))}
+      </div>
+      <div class="run-item-extra">
+        ${escapeHtml(extra)}
       </div>
       ${run.error ? `<div class="run-item-error">${escapeHtml(String(run.error).slice(0, 120))}</div>` : ""}
+      ${rerunHint ? `<div class="run-item-hint">${escapeHtml(rerunHint)}</div>` : ""}
     `;
     pipelineRunListEl.appendChild(item);
   }
@@ -261,6 +282,13 @@ function formatPercent(value) {
   return `${(value * 100).toFixed(1)}%`;
 }
 
+function formatMaybeNumber(value) {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "-";
+  }
+  return String(value);
+}
+
 function extractElapsedMs(run) {
   const stats = run?.stats || {};
   if (typeof stats.elapsed_ms === "number" && Number.isFinite(stats.elapsed_ms)) {
@@ -288,4 +316,81 @@ function formatDurationMs(value) {
   const minutes = Math.floor(seconds / 60);
   const remainSeconds = Math.round(seconds % 60);
   return `${minutes}m${remainSeconds}s`;
+}
+
+function normalizeStats(value) {
+  if (!value) {
+    return {};
+  }
+  if (typeof value === "object") {
+    return value;
+  }
+  try {
+    return JSON.parse(String(value));
+  } catch {
+    return {};
+  }
+}
+
+function firstNumeric(...values) {
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+  }
+  return null;
+}
+
+function buildRunSummaryHtml(runs) {
+  const failedCount = runs.filter((run) => String(run.status || "").toLowerCase() !== "success").length;
+  const lastChainSuccess = findLastChainSuccess(runs);
+  const chainValue = lastChainSuccess ? `${lastChainSuccess}（全链路）` : "暂无";
+  const healthClass = failedCount === 0 ? "ok" : "warn";
+  return `
+    <div class="run-summary-row">
+      <span class="run-summary-label">最近全链路成功</span>
+      <span class="run-summary-value">${escapeHtml(chainValue)}</span>
+    </div>
+    <div class="run-summary-row">
+      <span class="run-summary-label">最近20次失败数</span>
+      <span class="run-summary-value ${healthClass}">${escapeHtml(String(failedCount))}</span>
+    </div>
+  `;
+}
+
+function findLastChainSuccess(runs) {
+  const bucket = new Map();
+  for (const run of runs) {
+    if (String(run.status || "").toLowerCase() !== "success") {
+      continue;
+    }
+    const stats = normalizeStats(run.stats);
+    const digestDate = String(stats.digest_date || "").trim();
+    const job = String(run.job_type || "").trim();
+    if (!digestDate || !CHAIN_JOBS.includes(job)) {
+      continue;
+    }
+    if (!bucket.has(digestDate)) {
+      bucket.set(digestDate, new Set());
+    }
+    bucket.get(digestDate).add(job);
+  }
+  const chainDates = [...bucket.entries()]
+    .filter(([, jobs]) => CHAIN_JOBS.every((job) => jobs.has(job)))
+    .map(([digestDate]) => digestDate)
+    .sort((a, b) => Date.parse(b) - Date.parse(a));
+  return chainDates[0] || "";
+}
+
+function buildRerunHint(run, stats) {
+  const digestDate = stats.digest_date ? `date=${stats.digest_date}` : "date=<YYYY-MM-DD>";
+  const candidateLimit = typeof stats.candidate_count === "number" && stats.candidate_count > 0
+    ? `candidate_limit=${stats.candidate_count}`
+    : "candidate_limit=40";
+  const base = `workflow_dispatch: ${digestDate}`;
+  const job = String(run.job_type || "");
+  if (job === "translate" || job === "generate_digest" || job === "select_candidates") {
+    return `${base} ${candidateLimit}`;
+  }
+  return base;
 }

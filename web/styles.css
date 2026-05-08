@@ -127,6 +127,40 @@ button:hover {
   gap: 8px;
 }
 
+.run-summary {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  padding: 9px 11px;
+  display: grid;
+  gap: 8px;
+}
+
+.run-summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+
+.run-summary-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.run-summary-value {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.run-summary-value.ok {
+  color: #0f766e;
+}
+
+.run-summary-value.warn {
+  color: #b54708;
+}
+
 .run-item {
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -170,10 +204,26 @@ button:hover {
   color: var(--muted);
 }
 
+.run-item-extra {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #344054;
+}
+
 .run-item-error {
   margin-top: 6px;
   font-size: 12px;
   color: #b42318;
+  overflow-wrap: anywhere;
+}
+
+.run-item-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #0c4a6e;
+  background: #eff6ff;
+  border-radius: 4px;
+  padding: 5px 7px;
   overflow-wrap: anywhere;
 }
 

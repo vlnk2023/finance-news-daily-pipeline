@@ -7,7 +7,9 @@ import asyncio
 import json
 import logging
 import sys
+from datetime import date, datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -23,6 +25,7 @@ from scripts.pipeline_run_tracker import track_pipeline_run
 
 
 DEFAULT_REGISTRY_PATH = PROJECT_ROOT / "src/config/feed-registry.json"
+DEFAULT_TIMEZONE = "Asia/Shanghai"
 
 
 def main() -> None:
@@ -48,6 +51,8 @@ def main() -> None:
         help="Upsert successful collection results into Supabase.",
     )
     parser.add_argument("--verbose", action="store_true", help="Enable debug logs.")
+    parser.add_argument("--date", help="Digest date in YYYY-MM-DD for run tracking.")
+    parser.add_argument("--timezone", default=DEFAULT_TIMEZONE)
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -55,12 +60,16 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
 
+    tz = ZoneInfo(args.timezone)
+    digest_date = date.fromisoformat(args.date) if args.date else datetime.now(tz).date()
+
     with track_pipeline_run(
         "collect",
         initial_stats={
             "mode": "async" if args.run_async else "sync",
             "write_supabase": bool(args.write_supabase),
             "feed_id": args.feed_id or "",
+            "digest_date": digest_date.isoformat(),
         },
     ) as run_stats:
         feeds = load_enabled_feeds(args.registry, platform="telegram")
