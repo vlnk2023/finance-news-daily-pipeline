@@ -3,6 +3,9 @@ __pycache__/
 .pytest_cache/
 .cache/
 .tmp/
+.env
+.env.*
+!.env.example
 finance_news_daily_collector/
 pytest-cache-files-*/
 gradio.*.log

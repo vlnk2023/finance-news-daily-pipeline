@@ -136,26 +136,30 @@ def _cloudflare_lang(language: str) -> str:
 def _extract_translation(data: dict[str, Any]) -> str:
     result = data.get("result")
     if isinstance(result, dict):
-        value = result.get("translated_text") or result.get("answer")
-        if isinstance(value, str):
-            return value
+        if "translated_text" in result and isinstance(result["translated_text"], str):
+            return result["translated_text"]
+        if "answer" in result and isinstance(result["answer"], str):
+            return result["answer"]
     if isinstance(result, str):
         return result
-    value = data.get("translated_text") or data.get("answer")
-    if isinstance(value, str):
-        return value
+    if "translated_text" in data and isinstance(data["translated_text"], str):
+        return data["translated_text"]
+    if "answer" in data and isinstance(data["answer"], str):
+        return data["answer"]
     raise CloudflareTranslationError(f"Cloudflare response missing translated text: {data}")
 
 
 def _extract_generation(data: dict[str, Any]) -> str:
     result = data.get("result")
     if isinstance(result, dict):
-        value = result.get("response") or result.get("answer")
-        if isinstance(value, str):
-            return value
+        if "response" in result and isinstance(result["response"], str):
+            return result["response"]
+        if "answer" in result and isinstance(result["answer"], str):
+            return result["answer"]
     if isinstance(result, str):
         return result
-    value = data.get("response") or data.get("answer")
-    if isinstance(value, str):
-        return value
+    if "response" in data and isinstance(data["response"], str):
+        return data["response"]
+    if "answer" in data and isinstance(data["answer"], str):
+        return data["answer"]
     raise CloudflareGenerationError(f"Cloudflare response missing generated text: {data}")
