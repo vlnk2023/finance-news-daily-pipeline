@@ -127,6 +127,38 @@ button:hover {
   gap: 8px;
 }
 
+.digest-run-list {
+  display: grid;
+  gap: 8px;
+}
+
+.digest-run-item {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #fff;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.digest-run-item.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.digest-run-time {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.digest-run-meta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #344054;
+}
+
 .run-summary {
   border: 1px solid var(--line);
   border-radius: 6px;

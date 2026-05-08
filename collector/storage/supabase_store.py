@@ -352,12 +352,37 @@ class SupabaseStore:
         response.raise_for_status()
         return response.json()
 
-    def upsert_daily_digest(self, row: dict[str, Any]) -> None:
+    def upsert_daily_digest(
+        self,
+        row: dict[str, Any],
+        *,
+        pipeline_run_id: str | None = None,
+    ) -> None:
         payload = dict(row)
         now_iso = _now_iso()
         payload["generated_at"] = now_iso
         payload["updated_at"] = now_iso
         self._upsert("daily_digests", [payload], on_conflict="digest_date")
+        self.insert_daily_digest_run(payload, pipeline_run_id=pipeline_run_id)
+
+    def insert_daily_digest_run(
+        self,
+        row: dict[str, Any],
+        *,
+        pipeline_run_id: str | None = None,
+    ) -> None:
+        markdown = str(row.get("markdown") or "")
+        payload = {
+            "digest_date": row.get("digest_date"),
+            "title": row.get("title") or "",
+            "markdown": markdown,
+            "json_summary": row.get("json_summary") or {},
+            "model": row.get("model"),
+            "generated_at": row.get("generated_at") or _now_iso(),
+            "pipeline_run_id": pipeline_run_id,
+            "markdown_hash": hashlib.md5(markdown.encode("utf-8")).hexdigest(),
+        }
+        self._upsert("daily_digest_runs", [payload], on_conflict="id")
 
     def fetch_news_items_for_window(
         self,

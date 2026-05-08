@@ -21,6 +21,8 @@ def track_pipeline_run(job_type: str, *, initial_stats: dict[str, Any] | None = 
     try:
         store = SupabaseStore()
         run_id = store.create_pipeline_run(job_type=job_type, stats=stats)
+        if run_id:
+            stats["pipeline_run_id"] = run_id
     except SupabaseConfigError:
         LOGGER.debug("pipeline run tracking disabled: missing Supabase config")
     except Exception as exc:  # pragma: no cover - best effort telemetry

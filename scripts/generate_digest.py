@@ -156,7 +156,11 @@ def main() -> None:
                 run_stats["llm_used"] = False
                 run_stats["llm_error"] = str(exc)
 
-        store.upsert_daily_digest(digest)
+        pipeline_run_id = run_stats.get("pipeline_run_id")
+        store.upsert_daily_digest(
+            digest,
+            pipeline_run_id=str(pipeline_run_id) if pipeline_run_id else None,
+        )
         run_stats.update(
             {
                 "items": len(items),
