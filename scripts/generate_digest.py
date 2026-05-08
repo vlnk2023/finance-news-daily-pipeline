@@ -44,6 +44,18 @@ def main() -> None:
         help="Use digest_candidates as the primary daily digest input.",
     )
     parser.add_argument(
+        "--min-candidate-coverage",
+        type=float,
+        default=float(os.environ.get("DIGEST_MIN_CANDIDATE_COVERAGE", "0.7")),
+        help="Fallback to translated-window mode when candidate translated coverage is lower than this ratio.",
+    )
+    parser.add_argument(
+        "--min-candidate-count",
+        type=int,
+        default=int(os.environ.get("DIGEST_MIN_CANDIDATE_COUNT", "10")),
+        help="Fallback to translated-window mode when candidate count is lower than this value.",
+    )
+    parser.add_argument(
         "--provider",
         choices=["cloudflare", "rule-based"],
         default=os.environ.get("DIGEST_PROVIDER", "cloudflare"),
@@ -58,15 +70,48 @@ def main() -> None:
 
     tz = ZoneInfo(args.timezone)
     digest_date = date.fromisoformat(args.date) if args.date else datetime.now(tz).date()
+    start_at, end_at = _utc_bounds(digest_date, tz)
     store = SupabaseStore()
+
+    use_candidates = args.use_candidates
+    candidate_coverage: float | None = None
+    candidate_count = 0
+    fallback_reason: str | None = None
+
     if args.use_candidates:
-        items = store.fetch_digest_candidate_items(
+        candidate_items = store.fetch_digest_candidate_items(
             digest_date=digest_date.isoformat(),
             limit=args.limit,
         )
-        print(f"[DIGEST] candidate mode date={digest_date} candidate_items={len(items)}")
+        candidate_count = len(candidate_items)
+        candidate_coverage = _translated_coverage(candidate_items)
+        print(
+            f"[DIGEST] candidate mode date={digest_date} candidate_items={candidate_count} "
+            f"translated_coverage={candidate_coverage:.2%}"
+        )
+
+        if candidate_count < max(args.min_candidate_count, 0):
+            use_candidates = False
+            fallback_reason = (
+                f"candidate_count={candidate_count} below min_candidate_count={args.min_candidate_count}"
+            )
+        elif candidate_coverage < max(min(args.min_candidate_coverage, 1.0), 0.0):
+            use_candidates = False
+            fallback_reason = (
+                f"candidate_coverage={candidate_coverage:.2%} below "
+                f"min_candidate_coverage={args.min_candidate_coverage:.2%}"
+            )
+
+        if use_candidates:
+            items = candidate_items
+        else:
+            print(f"[DIGEST] fallback to translated-window mode reason={fallback_reason}")
+            items = store.fetch_digest_items(
+                start_at=start_at.isoformat(),
+                end_at=end_at.isoformat(),
+                limit=args.limit,
+            )
     else:
-        start_at, end_at = _utc_bounds(digest_date, tz)
         items = store.fetch_digest_items(
             start_at=start_at.isoformat(),
             end_at=end_at.isoformat(),
@@ -76,7 +121,14 @@ def main() -> None:
             f"[DIGEST] date={digest_date} start={start_at.isoformat()} "
             f"end={end_at.isoformat()} translated_items={len(items)}"
         )
-    digest = build_digest(digest_date, items)
+    digest = build_digest(
+        digest_date,
+        items,
+        use_candidates=use_candidates,
+        candidate_coverage=candidate_coverage,
+        candidate_count=candidate_count,
+        fallback_reason=fallback_reason,
+    )
     if args.provider == "cloudflare" and items:
         try:
             generator = CloudflareTextGenerator()
@@ -106,7 +158,15 @@ def main() -> None:
     )
 
 
-def build_digest(digest_date: date, items: list[dict[str, str]]) -> dict[str, object]:
+def build_digest(
+    digest_date: date,
+    items: list[dict[str, str]],
+    *,
+    use_candidates: bool = False,
+    candidate_coverage: float | None = None,
+    candidate_count: int | None = None,
+    fallback_reason: str | None = None,
+) -> dict[str, object]:
     categorized = {name: [] for name in CATEGORY_RULES}
     categorized["其他"] = []
 
@@ -115,16 +175,23 @@ def build_digest(digest_date: date, items: list[dict[str, str]]) -> dict[str, ob
         categorized[category].append(item)
 
     title = f"{digest_date.isoformat()} 财经新闻日报"
+    mode_text = "候选池分层日报" if use_candidates else "规则版日报生成器"
     lines = [
         f"# {title}",
         "",
         f"- 新闻数量：{len(items)}",
-        f"- 生成方式：规则版日报生成器",
+        f"- 生成方式：{mode_text}",
         "",
         "## 今日要点",
     ]
     for item in items[:8]:
         lines.append(f"- {_headline(item)}")
+
+    if use_candidates:
+        tiers = _candidate_tiers(items)
+        _append_candidate_tier(lines, "今日头条", tiers["top"])
+        _append_candidate_tier(lines, "重点跟踪", tiers["watch"])
+        _append_candidate_tier(lines, "其他快讯", tiers["brief"])
 
     for category, rows in categorized.items():
         if not rows:
@@ -139,6 +206,11 @@ def build_digest(digest_date: date, items: list[dict[str, str]]) -> dict[str, ob
         "date": digest_date.isoformat(),
         "item_count": len(items),
         "categories": {category: len(rows) for category, rows in categorized.items() if rows},
+        "candidate_mode": use_candidates,
+        "candidate_count": candidate_count,
+        "candidate_translated_coverage": candidate_coverage,
+        "candidate_fallback_reason": fallback_reason,
+        "top_clusters": _top_cluster_summary(items),
     }
     return {
         "digest_date": digest_date.isoformat(),
@@ -215,9 +287,16 @@ def _llm_prompt(
         source = item.get("source_id") or ""
         link = item.get("external_url") or item.get("url") or ""
         published_at = item.get("published_at") or ""
+        rank = item.get("_candidate_rank")
+        importance = item.get("_candidate_importance_score")
+        source_ids = item.get("_candidate_source_ids") or []
+        tier_hint = ""
+        if rank:
+            tier_hint = f"   候选池：rank={rank}, score={importance}, source_count={len(source_ids)}\n"
         lines.append(
             (
                 f"{index}. [{source}] {title}\n"
+                f"{tier_hint}"
                 f"   时间：{published_at}\n"
                 f"   摘要：{_compact(summary, 260)}\n"
                 f"   链接：{link}"
@@ -253,6 +332,50 @@ def _compact(text: str, max_length: int) -> str:
     if len(compacted) <= max_length:
         return compacted
     return compacted[: max_length - 1].rstrip() + "…"
+
+
+def _translated_coverage(items: list[dict[str, str]]) -> float:
+    if not items:
+        return 0.0
+    translated = sum(1 for item in items if item.get("translation_status") == "translated")
+    return translated / len(items)
+
+
+def _candidate_tiers(items: list[dict[str, str]]) -> dict[str, list[dict[str, str]]]:
+    ranked = sorted(items, key=lambda row: int(row.get("_candidate_rank") or 10**9))
+    return {
+        "top": ranked[:5],
+        "watch": ranked[5:15],
+        "brief": ranked[15:40],
+    }
+
+
+def _append_candidate_tier(lines: list[str], title: str, rows: list[dict[str, str]]) -> None:
+    if not rows:
+        return
+    lines.extend(["", f"## {title}"])
+    for item in rows:
+        rank = item.get("_candidate_rank")
+        importance = item.get("_candidate_importance_score")
+        sources = item.get("_candidate_source_ids") or []
+        marker = f"[#{rank}|score={importance}|src={len(sources)}] "
+        lines.append(f"- {marker}{_headline(item)}")
+
+
+def _top_cluster_summary(items: list[dict[str, str]], *, limit: int = 10) -> list[dict[str, object]]:
+    ranked = sorted(items, key=lambda row: int(row.get("_candidate_rank") or 10**9))
+    summary: list[dict[str, object]] = []
+    for item in ranked[:limit]:
+        summary.append(
+            {
+                "rank": item.get("_candidate_rank"),
+                "guid": item.get("guid"),
+                "cluster_id": item.get("_candidate_cluster_id"),
+                "importance_score": item.get("_candidate_importance_score"),
+                "source_count": len(item.get("_candidate_source_ids") or []),
+            }
+        )
+    return summary
 
 
 if __name__ == "__main__":

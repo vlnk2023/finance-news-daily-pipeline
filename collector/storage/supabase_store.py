@@ -392,7 +392,19 @@ class SupabaseStore:
         ranked_guids = [guid for guid in ranked_guids if guid]
         if not ranked_guids:
             return []
-        rank_map = {guid: index for index, guid in enumerate(ranked_guids)}
+        meta_map: dict[str, dict[str, Any]] = {}
+        for index, row in enumerate(candidate_rows):
+            guid = str(row.get("representative_item_guid") or "")
+            if not guid:
+                continue
+            meta_map[guid] = {
+                "_candidate_rank": int(row.get("rank") or index + 1),
+                "_candidate_importance_score": float(row.get("importance_score") or 0.0),
+                "_candidate_source_ids": row.get("source_ids") or [],
+                "_candidate_cluster_id": row.get("cluster_id") or "",
+            }
+
+        rank_map = {guid: meta_map[guid]["_candidate_rank"] for guid in ranked_guids if guid in meta_map}
         filter_value = ",".join(f'"{guid}"' for guid in ranked_guids)
 
         news_endpoint = f"{self.url}/rest/v1/news_items"
@@ -411,6 +423,10 @@ class SupabaseStore:
         )
         response.raise_for_status()
         rows = response.json()
+        for row in rows:
+            guid = str(row.get("guid") or "")
+            if guid in meta_map:
+                row.update(meta_map[guid])
         rows.sort(key=lambda row: rank_map.get(str(row.get("guid") or ""), 10**9))
         return rows
 
