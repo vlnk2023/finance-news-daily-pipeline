@@ -22,6 +22,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 from collector.storage.supabase_store import SupabaseStore
+from scripts.pipeline_run_tracker import track_pipeline_run
 
 DEFAULT_TIMEZONE = "Asia/Shanghai"
 TITLE_TOKEN_RE = re.compile(r"[\W_]+", re.UNICODE)
@@ -38,29 +39,43 @@ def main() -> None:
     digest_date = date.fromisoformat(args.date) if args.date else datetime.now(tz).date()
     start_at, end_at = _utc_bounds(digest_date, tz)
 
-    store = SupabaseStore()
-    items = store.fetch_news_items_for_window(
-        start_at=start_at.isoformat(),
-        end_at=end_at.isoformat(),
-        limit=args.limit,
-    )
-    clusters, members = build_clusters_for_date(digest_date, items)
-    store.replace_clusters_for_date(
-        digest_date=digest_date.isoformat(),
-        clusters=clusters,
-        members=members,
-    )
-    print(
-        json.dumps(
+    with track_pipeline_run(
+        "build_clusters",
+        initial_stats={
+            "digest_date": digest_date.isoformat(),
+            "limit": args.limit,
+        },
+    ) as run_stats:
+        store = SupabaseStore()
+        items = store.fetch_news_items_for_window(
+            start_at=start_at.isoformat(),
+            end_at=end_at.isoformat(),
+            limit=args.limit,
+        )
+        clusters, members = build_clusters_for_date(digest_date, items)
+        store.replace_clusters_for_date(
+            digest_date=digest_date.isoformat(),
+            clusters=clusters,
+            members=members,
+        )
+        run_stats.update(
             {
-                "digest_date": digest_date.isoformat(),
                 "items": len(items),
                 "clusters": len(clusters),
                 "members": len(members),
-            },
-            ensure_ascii=False,
+            }
         )
-    )
+        print(
+            json.dumps(
+                {
+                    "digest_date": digest_date.isoformat(),
+                    "items": len(items),
+                    "clusters": len(clusters),
+                    "members": len(members),
+                },
+                ensure_ascii=False,
+            )
+        )
 
 
 def build_clusters_for_date(

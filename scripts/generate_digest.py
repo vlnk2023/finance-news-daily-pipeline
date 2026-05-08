@@ -19,6 +19,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 from collector.storage.supabase_store import SupabaseStore
 from collector.translation.cloudflare import DEFAULT_TEXT_MODEL, CloudflareTextGenerator
+from scripts.pipeline_run_tracker import track_pipeline_run
 
 
 DEFAULT_TIMEZONE = "Asia/Shanghai"
@@ -71,91 +72,112 @@ def main() -> None:
     tz = ZoneInfo(args.timezone)
     digest_date = date.fromisoformat(args.date) if args.date else datetime.now(tz).date()
     start_at, end_at = _utc_bounds(digest_date, tz)
-    store = SupabaseStore()
+    with track_pipeline_run(
+        "generate_digest",
+        initial_stats={
+            "digest_date": digest_date.isoformat(),
+            "provider": args.provider,
+            "use_candidates_requested": bool(args.use_candidates),
+        },
+    ) as run_stats:
+        store = SupabaseStore()
 
-    use_candidates = args.use_candidates
-    candidate_coverage: float | None = None
-    candidate_count = 0
-    fallback_reason: str | None = None
+        use_candidates = args.use_candidates
+        candidate_coverage: float | None = None
+        candidate_count = 0
+        fallback_reason: str | None = None
 
-    if args.use_candidates:
-        candidate_items = store.fetch_digest_candidate_items(
-            digest_date=digest_date.isoformat(),
-            limit=args.limit,
-        )
-        candidate_count = len(candidate_items)
-        candidate_coverage = _translated_coverage(candidate_items)
-        print(
-            f"[DIGEST] candidate mode date={digest_date} candidate_items={candidate_count} "
-            f"translated_coverage={candidate_coverage:.2%}"
-        )
-
-        if candidate_count < max(args.min_candidate_count, 0):
-            use_candidates = False
-            fallback_reason = (
-                f"candidate_count={candidate_count} below min_candidate_count={args.min_candidate_count}"
+        if args.use_candidates:
+            candidate_items = store.fetch_digest_candidate_items(
+                digest_date=digest_date.isoformat(),
+                limit=args.limit,
             )
-        elif candidate_coverage < max(min(args.min_candidate_coverage, 1.0), 0.0):
-            use_candidates = False
-            fallback_reason = (
-                f"candidate_coverage={candidate_coverage:.2%} below "
-                f"min_candidate_coverage={args.min_candidate_coverage:.2%}"
+            candidate_count = len(candidate_items)
+            candidate_coverage = _translated_coverage(candidate_items)
+            print(
+                f"[DIGEST] candidate mode date={digest_date} candidate_items={candidate_count} "
+                f"translated_coverage={candidate_coverage:.2%}"
             )
 
-        if use_candidates:
-            items = candidate_items
+            if candidate_count < max(args.min_candidate_count, 0):
+                use_candidates = False
+                fallback_reason = (
+                    f"candidate_count={candidate_count} below min_candidate_count={args.min_candidate_count}"
+                )
+            elif candidate_coverage < max(min(args.min_candidate_coverage, 1.0), 0.0):
+                use_candidates = False
+                fallback_reason = (
+                    f"candidate_coverage={candidate_coverage:.2%} below "
+                    f"min_candidate_coverage={args.min_candidate_coverage:.2%}"
+                )
+
+            if use_candidates:
+                items = candidate_items
+            else:
+                print(f"[DIGEST] fallback to translated-window mode reason={fallback_reason}")
+                items = store.fetch_digest_items(
+                    start_at=start_at.isoformat(),
+                    end_at=end_at.isoformat(),
+                    limit=args.limit,
+                )
         else:
-            print(f"[DIGEST] fallback to translated-window mode reason={fallback_reason}")
             items = store.fetch_digest_items(
                 start_at=start_at.isoformat(),
                 end_at=end_at.isoformat(),
                 limit=args.limit,
             )
-    else:
-        items = store.fetch_digest_items(
-            start_at=start_at.isoformat(),
-            end_at=end_at.isoformat(),
-            limit=args.limit,
-        )
-        print(
-            f"[DIGEST] date={digest_date} start={start_at.isoformat()} "
-            f"end={end_at.isoformat()} translated_items={len(items)}"
-        )
-    digest = build_digest(
-        digest_date,
-        items,
-        use_candidates=use_candidates,
-        candidate_coverage=candidate_coverage,
-        candidate_count=candidate_count,
-        fallback_reason=fallback_reason,
-    )
-    if args.provider == "cloudflare" and items:
-        try:
-            generator = CloudflareTextGenerator()
-            print(f"[DIGEST] LLM model={generator.model}")
-            digest = build_llm_digest(
-                digest_date,
-                items[: args.llm_limit],
-                generator=generator,
-                fallback_digest=digest,
+            print(
+                f"[DIGEST] date={digest_date} start={start_at.isoformat()} "
+                f"end={end_at.isoformat()} translated_items={len(items)}"
             )
-            print(f"[DIGEST] LLM digest generated OK, length={len(digest['markdown'])}")
-        except Exception as exc:
-            logging.exception("LLM digest generation failed; using rule-based fallback: %s", exc)
-            print(f"[DIGEST] LLM FAILED, using rule-based fallback: {exc}")
-
-    store.upsert_daily_digest(digest)
-    print(f"[DIGEST] upserted daily_digest date={digest_date} model={digest['model']}")
-    print(
-        json.dumps(
-            {
-                "digest_date": str(digest_date),
-                "items": len(items),
-                "model": digest["model"],
-            },
-            ensure_ascii=False,
+        digest = build_digest(
+            digest_date,
+            items,
+            use_candidates=use_candidates,
+            candidate_coverage=candidate_coverage,
+            candidate_count=candidate_count,
+            fallback_reason=fallback_reason,
         )
-    )
+        if args.provider == "cloudflare" and items:
+            try:
+                generator = CloudflareTextGenerator()
+                print(f"[DIGEST] LLM model={generator.model}")
+                digest = build_llm_digest(
+                    digest_date,
+                    items[: args.llm_limit],
+                    generator=generator,
+                    fallback_digest=digest,
+                )
+                print(f"[DIGEST] LLM digest generated OK, length={len(digest['markdown'])}")
+                run_stats["llm_used"] = True
+            except Exception as exc:
+                logging.exception("LLM digest generation failed; using rule-based fallback: %s", exc)
+                print(f"[DIGEST] LLM FAILED, using rule-based fallback: {exc}")
+                run_stats["llm_used"] = False
+                run_stats["llm_error"] = str(exc)
+
+        store.upsert_daily_digest(digest)
+        run_stats.update(
+            {
+                "items": len(items),
+                "candidate_mode_used": use_candidates,
+                "candidate_count": candidate_count,
+                "candidate_coverage": candidate_coverage,
+                "fallback_reason": fallback_reason or "",
+                "model": digest["model"],
+            }
+        )
+        print(f"[DIGEST] upserted daily_digest date={digest_date} model={digest['model']}")
+        print(
+            json.dumps(
+                {
+                    "digest_date": str(digest_date),
+                    "items": len(items),
+                    "model": digest["model"],
+                },
+                ensure_ascii=False,
+            )
+        )
 
 
 def build_digest(

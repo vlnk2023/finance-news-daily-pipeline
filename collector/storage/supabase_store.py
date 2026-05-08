@@ -136,6 +136,64 @@ class SupabaseStore:
         response.raise_for_status()
         return len(rows)
 
+    def create_pipeline_run(
+        self,
+        *,
+        job_type: str,
+        status: str = "running",
+        stats: dict[str, Any] | None = None,
+    ) -> str | None:
+        endpoint = f"{self.url}/rest/v1/pipeline_runs"
+        payload = {
+            "job_type": job_type,
+            "status": status,
+            "started_at": _now_iso(),
+            "stats": stats or {},
+        }
+        response = self.session.post(
+            endpoint,
+            headers={
+                **self._headers(),
+                "content-type": "application/json",
+                "prefer": "return=representation",
+            },
+            data=json.dumps([payload], ensure_ascii=False),
+            timeout=self.timeout_seconds,
+        )
+        response.raise_for_status()
+        rows = response.json()
+        if not rows:
+            return None
+        return rows[0].get("id")
+
+    def finish_pipeline_run(
+        self,
+        run_id: str,
+        *,
+        status: str,
+        stats: dict[str, Any] | None = None,
+        error: str | None = None,
+    ) -> None:
+        endpoint = f"{self.url}/rest/v1/pipeline_runs"
+        payload = {
+            "status": status,
+            "finished_at": _now_iso(),
+            "stats": stats or {},
+            "error": (error or "")[:2000] or None,
+        }
+        response = self.session.patch(
+            endpoint,
+            params={"id": f"eq.{run_id}"},
+            headers={
+                **self._headers(),
+                "content-type": "application/json",
+                "prefer": "return=minimal",
+            },
+            data=json.dumps(payload, ensure_ascii=False),
+            timeout=self.timeout_seconds,
+        )
+        response.raise_for_status()
+
     def fetch_pending_translation_items(self, *, limit: int = 200) -> list[dict[str, Any]]:
         endpoint = f"{self.url}/rest/v1/news_items"
         response = self.session.get(

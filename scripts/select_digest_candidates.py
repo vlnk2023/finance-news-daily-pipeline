@@ -16,6 +16,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 from collector.storage.supabase_store import SupabaseStore
+from scripts.pipeline_run_tracker import track_pipeline_run
 
 DEFAULT_TIMEZONE = "Asia/Shanghai"
 
@@ -31,23 +32,37 @@ def main() -> None:
     tz = ZoneInfo(args.timezone)
     digest_date = date.fromisoformat(args.date) if args.date else datetime.now(tz).date()
 
-    store = SupabaseStore()
-    clusters = store.fetch_clusters_for_date(digest_date=digest_date.isoformat(), limit=args.limit)
-    candidates = select_candidates(digest_date=digest_date, clusters=clusters, max_candidates=args.max_candidates)
-    store.replace_digest_candidates_for_date(
-        digest_date=digest_date.isoformat(),
-        candidates=candidates,
-    )
-    print(
-        json.dumps(
+    with track_pipeline_run(
+        "select_candidates",
+        initial_stats={
+            "digest_date": digest_date.isoformat(),
+            "max_candidates": args.max_candidates,
+            "limit": args.limit,
+        },
+    ) as run_stats:
+        store = SupabaseStore()
+        clusters = store.fetch_clusters_for_date(digest_date=digest_date.isoformat(), limit=args.limit)
+        candidates = select_candidates(digest_date=digest_date, clusters=clusters, max_candidates=args.max_candidates)
+        store.replace_digest_candidates_for_date(
+            digest_date=digest_date.isoformat(),
+            candidates=candidates,
+        )
+        run_stats.update(
             {
-                "digest_date": digest_date.isoformat(),
                 "clusters": len(clusters),
                 "candidates": len(candidates),
-            },
-            ensure_ascii=False,
+            }
         )
-    )
+        print(
+            json.dumps(
+                {
+                    "digest_date": digest_date.isoformat(),
+                    "clusters": len(clusters),
+                    "candidates": len(candidates),
+                },
+                ensure_ascii=False,
+            )
+        )
 
 
 def select_candidates(

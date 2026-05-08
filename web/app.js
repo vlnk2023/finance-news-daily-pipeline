@@ -7,6 +7,7 @@ const statusEl = document.getElementById("status");
 const digestEl = document.getElementById("digest");
 const digestListEl = document.getElementById("digestList");
 const refreshButton = document.getElementById("refreshButton");
+const digestMetaEl = document.getElementById("digestMeta");
 
 refreshButton.addEventListener("click", () => loadDigests());
 
@@ -23,7 +24,7 @@ async function loadDigests() {
     }
 
     const url = new URL(`${config.supabaseUrl}/rest/v1/daily_digests`);
-    url.searchParams.set("select", "digest_date,title,markdown,generated_at");
+    url.searchParams.set("select", "digest_date,title,markdown,generated_at,model,json_summary");
     url.searchParams.set("order", "digest_date.desc");
     url.searchParams.set("limit", "30");
 
@@ -77,6 +78,7 @@ function renderSelectedDigest() {
 
   setStatus(`生成时间：${formatDateTime(digest.generated_at)}`);
   digestEl.innerHTML = markdownToHtml(digest.markdown || "");
+  renderDigestMeta(digest);
 }
 
 function setStatus(message, isError = false) {
@@ -144,4 +146,62 @@ function formatDateTime(value) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function renderDigestMeta(digest) {
+  if (!digestMetaEl) {
+    return;
+  }
+  const summary = digest?.json_summary || {};
+  const candidateMode = summary.candidate_mode === true;
+  const coverage = summary.candidate_translated_coverage;
+  const fallbackReason = summary.candidate_fallback_reason || "";
+  const topClusters = Array.isArray(summary.top_clusters) ? summary.top_clusters : [];
+  const model = digest?.model || "-";
+
+  const rows = [
+    ["模型", model, ""],
+    ["候选模式", candidateMode ? "已启用" : "未启用", candidateMode ? "ok" : ""],
+    ["候选数", summary.candidate_count ?? "-", ""],
+    ["候选覆盖率", formatPercent(coverage), coverage >= 0.7 ? "ok" : "warn"],
+    ["新闻总量", summary.item_count ?? "-", ""],
+    ["回退原因", fallbackReason || "无", fallbackReason ? "warn" : ""],
+  ];
+
+  digestMetaEl.innerHTML = rows
+    .map(([label, value, cls]) => {
+      const clsName = cls ? `meta-value ${cls}` : "meta-value";
+      return `
+        <div class="meta-row">
+          <span class="meta-label">${escapeHtml(String(label))}</span>
+          <span class="${clsName}">${escapeHtml(String(value))}</span>
+        </div>
+      `;
+    })
+    .join("");
+
+  if (topClusters.length) {
+    const items = topClusters
+      .slice(0, 8)
+      .map((item) => {
+        const rank = item.rank ?? "-";
+        const score = item.importance_score ?? "-";
+        const sourceCount = item.source_count ?? "-";
+        return `<li>#${escapeHtml(String(rank))} score=${escapeHtml(String(score))} src=${escapeHtml(String(sourceCount))}</li>`;
+      })
+      .join("");
+    digestMetaEl.innerHTML += `
+      <div class="cluster-list">
+        <h3>Top Clusters</h3>
+        <ul>${items}</ul>
+      </div>
+    `;
+  }
+}
+
+function formatPercent(value) {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "-";
+  }
+  return `${(value * 100).toFixed(1)}%`;
 }

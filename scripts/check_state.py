@@ -59,6 +59,19 @@ def main() -> None:
     ).json()
     print(f"[STATE] intelligence_clusters={len(clusters)} digest_candidates={len(candidates)}")
 
+    run_rows = store.session.get(
+        f"{store.url}/rest/v1/pipeline_runs",
+        params={
+            "select": "job_type,status,started_at,finished_at,error",
+            "order": "started_at.desc",
+            "limit": "20",
+        },
+        headers=store._headers(),
+    ).json()
+    run_success = sum(1 for row in run_rows if row.get("status") == "success")
+    run_failed = sum(1 for row in run_rows if row.get("status") == "failed")
+    print(f"[STATE] pipeline_runs recent={len(run_rows)} success={run_success} failed={run_failed}")
+
     violations = []
     if args.max_pending is not None and pending > args.max_pending:
         violations.append(f"pending={pending} exceeds max_pending={args.max_pending}")

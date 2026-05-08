@@ -125,6 +125,62 @@ button:hover {
   color: #b42318;
 }
 
+.meta-panel {
+  margin-bottom: 14px;
+}
+
+.digest-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+}
+
+.meta-row {
+  display: grid;
+  gap: 4px;
+}
+
+.meta-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.meta-value {
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.meta-value.warn {
+  color: #b54708;
+}
+
+.meta-value.ok {
+  color: #0f766e;
+}
+
+.cluster-list {
+  margin-top: 12px;
+  border-top: 1px dashed var(--line);
+  padding-top: 10px;
+}
+
+.cluster-list h3 {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+
+.cluster-list ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.cluster-list li {
+  margin: 5px 0;
+  font-size: 13px;
+}
+
 .digest {
   padding: 28px;
   line-height: 1.68;
@@ -173,5 +229,9 @@ button:hover {
 
   .digest {
     padding: 20px;
+  }
+
+  .digest-meta {
+    grid-template-columns: 1fr;
   }
 }
