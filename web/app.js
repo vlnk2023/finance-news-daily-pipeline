@@ -1,5 +1,6 @@
 const state = {
   digests: [],
+  pipelineRuns: [],
   selectedDate: null,
 };
 
@@ -8,6 +9,7 @@ const digestEl = document.getElementById("digest");
 const digestListEl = document.getElementById("digestList");
 const refreshButton = document.getElementById("refreshButton");
 const digestMetaEl = document.getElementById("digestMeta");
+const pipelineRunListEl = document.getElementById("pipelineRunList");
 
 refreshButton.addEventListener("click", () => loadDigests());
 
@@ -23,24 +25,15 @@ async function loadDigests() {
       throw new Error("Missing Supabase config. Create web/config.js from config.example.js.");
     }
 
-    const url = new URL(`${config.supabaseUrl}/rest/v1/daily_digests`);
-    url.searchParams.set("select", "digest_date,title,markdown,generated_at,model,json_summary");
-    url.searchParams.set("order", "digest_date.desc");
-    url.searchParams.set("limit", "30");
-
-    const response = await fetch(url, {
-      headers: {
-        apikey: config.supabaseAnonKey,
-        authorization: `Bearer ${config.supabaseAnonKey}`,
-      },
-    });
-    if (!response.ok) {
-      throw new Error(`Supabase request failed: ${response.status}`);
-    }
-
-    state.digests = await response.json();
+    const [digests, runs] = await Promise.all([
+      fetchDigests(config),
+      fetchPipelineRuns(config),
+    ]);
+    state.digests = digests;
+    state.pipelineRuns = runs;
     state.selectedDate = state.selectedDate || state.digests[0]?.digest_date || null;
     renderDigestList();
+    renderPipelineRuns();
     renderSelectedDigest();
   } catch (error) {
     setStatus(error.message, true);
@@ -79,6 +72,34 @@ function renderSelectedDigest() {
   setStatus(`生成时间：${formatDateTime(digest.generated_at)}`);
   digestEl.innerHTML = markdownToHtml(digest.markdown || "");
   renderDigestMeta(digest);
+}
+
+function renderPipelineRuns() {
+  if (!pipelineRunListEl) {
+    return;
+  }
+  pipelineRunListEl.innerHTML = "";
+  if (!state.pipelineRuns.length) {
+    pipelineRunListEl.textContent = "暂无运行记录";
+    return;
+  }
+  for (const run of state.pipelineRuns) {
+    const item = document.createElement("div");
+    item.className = "run-item";
+    const status = String(run.status || "").toLowerCase() === "success" ? "success" : "failed";
+    const elapsedMs = extractElapsedMs(run);
+    item.innerHTML = `
+      <div class="run-item-head">
+        <span class="run-item-title">${escapeHtml(String(run.job_type || "unknown"))}</span>
+        <span class="run-badge ${status}">${status === "success" ? "OK" : "FAIL"}</span>
+      </div>
+      <div class="run-item-meta">
+        ${escapeHtml(formatDateTime(run.started_at))} · ${escapeHtml(formatDurationMs(elapsedMs))}
+      </div>
+      ${run.error ? `<div class="run-item-error">${escapeHtml(String(run.error).slice(0, 120))}</div>` : ""}
+    `;
+    pipelineRunListEl.appendChild(item);
+  }
 }
 
 function setStatus(message, isError = false) {
@@ -148,6 +169,40 @@ function formatDateTime(value) {
   }).format(new Date(value));
 }
 
+async function fetchDigests(config) {
+  const url = new URL(`${config.supabaseUrl}/rest/v1/daily_digests`);
+  url.searchParams.set("select", "digest_date,title,markdown,generated_at,model,json_summary");
+  url.searchParams.set("order", "digest_date.desc");
+  url.searchParams.set("limit", "30");
+  const response = await fetch(url, {
+    headers: {
+      apikey: config.supabaseAnonKey,
+      authorization: `Bearer ${config.supabaseAnonKey}`,
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`Supabase digest request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+async function fetchPipelineRuns(config) {
+  const url = new URL(`${config.supabaseUrl}/rest/v1/pipeline_runs`);
+  url.searchParams.set("select", "job_type,status,started_at,finished_at,stats,error");
+  url.searchParams.set("order", "started_at.desc");
+  url.searchParams.set("limit", "20");
+  const response = await fetch(url, {
+    headers: {
+      apikey: config.supabaseAnonKey,
+      authorization: `Bearer ${config.supabaseAnonKey}`,
+    },
+  });
+  if (!response.ok) {
+    return [];
+  }
+  return response.json();
+}
+
 function renderDigestMeta(digest) {
   if (!digestMetaEl) {
     return;
@@ -204,4 +259,33 @@ function formatPercent(value) {
     return "-";
   }
   return `${(value * 100).toFixed(1)}%`;
+}
+
+function extractElapsedMs(run) {
+  const stats = run?.stats || {};
+  if (typeof stats.elapsed_ms === "number" && Number.isFinite(stats.elapsed_ms)) {
+    return stats.elapsed_ms;
+  }
+  const start = Date.parse(run?.started_at || "");
+  const end = Date.parse(run?.finished_at || "");
+  if (!Number.isNaN(start) && !Number.isNaN(end) && end >= start) {
+    return end - start;
+  }
+  return null;
+}
+
+function formatDurationMs(value) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    return "-";
+  }
+  if (value < 1000) {
+    return `${Math.round(value)}ms`;
+  }
+  const seconds = value / 1000;
+  if (seconds < 60) {
+    return `${seconds.toFixed(1)}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  const remainSeconds = Math.round(seconds % 60);
+  return `${minutes}m${remainSeconds}s`;
 }
