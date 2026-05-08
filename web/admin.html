@@ -26,6 +26,33 @@
         <div id="adminSummary" class="digest-meta admin-summary"></div>
       </section>
 
+      <section class="panel admin-digest-panel">
+        <div class="section-head">
+          <h2>Digest Diagnostics</h2>
+          <label>
+            Digest date
+            <select id="digestDiagnosticDate"></select>
+          </label>
+        </div>
+        <div class="metric-groups">
+          <section class="metric-group">
+            <h3>Quality</h3>
+            <div id="digestMetaQuality" class="digest-meta"></div>
+          </section>
+          <section class="metric-group">
+            <h3>Delivery</h3>
+            <div id="digestMetaDelivery" class="digest-meta"></div>
+          </section>
+        </div>
+      </section>
+
+      <details id="clusterPanel" class="panel cluster-panel">
+        <summary>Top Clusters</summary>
+        <div class="cluster-panel-body">
+          <ul id="clusterList" class="cluster-list"></ul>
+        </div>
+      </details>
+
       <section class="admin-grid">
         <section class="panel">
           <h2>Pipeline Runs</h2>

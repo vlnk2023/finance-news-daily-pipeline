@@ -132,6 +132,35 @@ button:hover {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.section-head h2 {
+  margin-bottom: 0;
+}
+
+.section-head label {
+  display: grid;
+  gap: 4px;
+  min-width: 180px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.section-head select {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 12px;
+  padding: 6px 8px;
+  color: var(--text);
+  background: #fff;
+}
+
 .panel,
 .digest {
   background: var(--panel);
@@ -644,6 +673,14 @@ button:hover {
   .admin-summary,
   .source-health-tools {
     grid-template-columns: 1fr;
+  }
+
+  .section-head {
+    flex-direction: column;
+  }
+
+  .section-head label {
+    width: 100%;
   }
 
   .content > .panel,

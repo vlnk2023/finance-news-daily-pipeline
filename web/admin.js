@@ -5,6 +5,7 @@ const adminState = {
   sourceHealthFilter: "all",
   sourceHealthSort: "age_desc",
   selectedHealthDate: "",
+  selectedDigestDate: "",
   readSurface: {
     digests: "",
     pipelineRuns: "",
@@ -14,6 +15,11 @@ const adminState = {
 const statusEl = document.getElementById("status");
 const refreshButton = document.getElementById("refreshButton");
 const adminSummaryEl = document.getElementById("adminSummary");
+const digestDiagnosticDateEl = document.getElementById("digestDiagnosticDate");
+const digestMetaQualityEl = document.getElementById("digestMetaQuality");
+const digestMetaDeliveryEl = document.getElementById("digestMetaDelivery");
+const clusterPanelEl = document.getElementById("clusterPanel");
+const clusterListEl = document.getElementById("clusterList");
 const pipelineRunListEl = document.getElementById("pipelineRunList");
 const sourceHealthListEl = document.getElementById("sourceHealthList");
 const sourceHealthFilterEl = document.getElementById("sourceHealthFilter");
@@ -33,6 +39,10 @@ sourceHealthDateEl.addEventListener("change", () => {
   adminState.selectedHealthDate = String(sourceHealthDateEl.value || "");
   renderSourceHealth();
 });
+digestDiagnosticDateEl.addEventListener("change", () => {
+  adminState.selectedDigestDate = String(digestDiagnosticDateEl.value || "");
+  renderDigestDiagnostics();
+});
 
 loadAdmin();
 
@@ -49,8 +59,11 @@ async function loadAdmin() {
     adminState.readSurface.pipelineRuns = runsRead.relation;
     adminState.pipelineRunsError = "";
     adminState.selectedHealthDate = adminState.selectedHealthDate || inferLatestDigestDate();
+    adminState.selectedDigestDate = adminState.selectedDigestDate || adminState.digests[0]?.digest_date || "";
 
     renderAdminSummary();
+    renderDigestDiagnosticDateOptions();
+    renderDigestDiagnostics();
     renderPipelineRuns();
     renderSourceHealthDateOptions();
     renderSourceHealth();
@@ -58,10 +71,106 @@ async function loadAdmin() {
   } catch (error) {
     adminState.pipelineRunsError = String(error?.message || error || "Failed to load admin data.");
     renderAdminSummary();
+    renderDigestDiagnosticDateOptions();
+    renderDigestDiagnostics();
     renderPipelineRuns();
     renderSourceHealth();
     setStatus(adminState.pipelineRunsError, true);
   }
+}
+
+function renderDigestDiagnosticDateOptions() {
+  if (!digestDiagnosticDateEl) {
+    return;
+  }
+  const dates = adminState.digests.map((digest) => String(digest.digest_date || "")).filter(Boolean);
+  if (!dates.includes(adminState.selectedDigestDate) && dates.length) {
+    adminState.selectedDigestDate = dates[0];
+  }
+  digestDiagnosticDateEl.innerHTML = dates
+    .map((date) => {
+      const selected = date === adminState.selectedDigestDate ? " selected" : "";
+      return `<option value="${DigestShared.escapeHtml(date)}"${selected}>${DigestShared.escapeHtml(date)}</option>`;
+    })
+    .join("");
+}
+
+function renderDigestDiagnostics() {
+  const digest = adminState.digests.find((item) => item.digest_date === adminState.selectedDigestDate);
+  if (!digest) {
+    setMetricRows(digestMetaQualityEl, []);
+    setMetricRows(digestMetaDeliveryEl, []);
+    renderClusters([]);
+    return;
+  }
+
+  const summary = digest?.json_summary || {};
+  const candidateMode = summary.candidate_mode === true;
+  const coverage = summary.candidate_translated_coverage;
+  const fallbackReason = summary.candidate_fallback_reason || "";
+  const topClusters = Array.isArray(summary.top_clusters) ? summary.top_clusters : [];
+  const model = digest?.model || "-";
+  const digestRun = DigestShared.findLatestRunForJobAndDate(
+    adminState.pipelineRuns,
+    "generate_digest",
+    digest?.digest_date || ""
+  );
+  const digestRunStats = DigestShared.normalizeStats(digestRun?.stats);
+  const validationMode = String(digestRunStats.validation_mode || digestRunStats.digest_mode || "-");
+  const validationReason = String(digestRunStats.validation_reason || fallbackReason || "");
+  const qualityRows = [
+    ["Candidate mode", candidateMode ? "enabled" : "disabled", candidateMode ? "ok" : ""],
+    ["Candidate count", summary.candidate_count ?? "-", ""],
+    ["Candidate coverage", DigestShared.formatPercent(coverage), coverage >= 0.7 ? "ok" : "warn"],
+    ["Raw item count", summary.item_count ?? "-", ""],
+  ];
+  const deliveryRows = [
+    ["Model", model, ""],
+    ["Validation mode", validationMode, validationMode === "normal" ? "ok" : "warn"],
+    ["API surface", buildReadSurfaceLabel(), ""],
+    ["Fallback reason", validationReason || "-", validationReason ? "warn" : ""],
+  ];
+  setMetricRows(digestMetaQualityEl, qualityRows);
+  setMetricRows(digestMetaDeliveryEl, deliveryRows);
+  renderClusters(topClusters);
+}
+
+function setMetricRows(container, rows) {
+  if (!container) {
+    return;
+  }
+  container.innerHTML = rows
+    .map(([label, value, cls]) => {
+      const clsName = cls ? `meta-value ${cls}` : "meta-value";
+      return `
+        <div class="meta-row">
+          <span class="meta-label">${DigestShared.escapeHtml(String(label))}</span>
+          <span class="${clsName}">${DigestShared.escapeHtml(String(value))}</span>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function renderClusters(topClusters) {
+  if (!clusterPanelEl || !clusterListEl) {
+    return;
+  }
+  const rows = Array.isArray(topClusters) ? topClusters.slice(0, 8) : [];
+  if (!rows.length) {
+    clusterListEl.innerHTML = '<li class="cluster-empty">No cluster detail available.</li>';
+    clusterPanelEl.open = false;
+    return;
+  }
+  clusterPanelEl.open = true;
+  clusterListEl.innerHTML = rows
+    .map((item) => {
+      const rank = item.rank ?? "-";
+      const score = item.importance_score ?? "-";
+      const sourceCount = item.source_count ?? "-";
+      return `<li>#${DigestShared.escapeHtml(String(rank))} score=${DigestShared.escapeHtml(String(score))} src=${DigestShared.escapeHtml(String(sourceCount))}</li>`;
+    })
+    .join("");
 }
 
 function renderAdminSummary() {
@@ -257,6 +366,12 @@ function buildRerunHint(run, stats) {
     return `${base} ${candidateLimit}`;
   }
   return base;
+}
+
+function buildReadSurfaceLabel() {
+  const digestsSurface = adminState.readSurface.digests || "-";
+  const runsSurface = adminState.readSurface.pipelineRuns || "-";
+  return `digests=${digestsSurface} runs=${runsSurface}`;
 }
 
 function inferLatestDigestDate() {
