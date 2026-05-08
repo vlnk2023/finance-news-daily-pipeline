@@ -1,9 +1,7 @@
 const state = {
   digests: [],
   pipelineRuns: [],
-  digestRuns: [],
   selectedDate: null,
-  selectedDigestRunId: null,
 };
 const CHAIN_JOBS = ["collect", "build_clusters", "select_candidates", "translate", "generate_digest"];
 
@@ -13,7 +11,6 @@ const digestListEl = document.getElementById("digestList");
 const refreshButton = document.getElementById("refreshButton");
 const digestMetaEl = document.getElementById("digestMeta");
 const pipelineRunListEl = document.getElementById("pipelineRunList");
-const digestRunListEl = document.getElementById("digestRunList");
 
 refreshButton.addEventListener("click", () => loadDigests());
 
@@ -29,19 +26,15 @@ async function loadDigests() {
       throw new Error("Missing Supabase config. Create web/config.js from config.example.js.");
     }
 
-    const [digests, runs, digestRuns] = await Promise.all([
+    const [digests, runs] = await Promise.all([
       fetchDigests(config),
       fetchPipelineRuns(config),
-      fetchDigestRuns(config),
     ]);
     state.digests = digests;
     state.pipelineRuns = runs;
-    state.digestRuns = digestRuns;
     state.selectedDate = state.selectedDate || state.digests[0]?.digest_date || null;
-    syncSelectedDigestRun();
     renderDigestList();
     renderPipelineRuns();
-    renderDigestRuns();
     renderSelectedDigest();
   } catch (error) {
     setStatus(error.message, true);
@@ -63,10 +56,7 @@ function renderDigestList() {
     link.addEventListener("click", (event) => {
       event.preventDefault();
       state.selectedDate = digest.digest_date;
-      state.selectedDigestRunId = null;
-      syncSelectedDigestRun();
       renderDigestList();
-      renderDigestRuns();
       renderSelectedDigest();
     });
     digestListEl.appendChild(link);
@@ -75,47 +65,14 @@ function renderDigestList() {
 
 function renderSelectedDigest() {
   const digest = state.digests.find((item) => item.digest_date === state.selectedDate);
-  const digestRun = getSelectedDigestRun();
-  const view = digestRun || digest;
-  if (!view) {
+  if (!digest) {
     setStatus("暂无日报");
     return;
   }
 
-  setStatus(`生成时间：${formatDateTime(view.generated_at)}`);
-  digestEl.innerHTML = markdownToHtml(view.markdown || "");
-  renderDigestMeta(view);
-}
-
-function renderDigestRuns() {
-  if (!digestRunListEl) {
-    return;
-  }
-  digestRunListEl.innerHTML = "";
-  const selectedDate = state.selectedDate;
-  const runs = state.digestRuns.filter((item) => item.digest_date === selectedDate);
-  if (!runs.length) {
-    digestRunListEl.textContent = "当日暂无版本记录";
-    return;
-  }
-
-  for (const run of runs) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = `digest-run-item${run.id === state.selectedDigestRunId ? " active" : ""}`;
-    const model = run.model || "-";
-    const hash = String(run.markdown_hash || "").slice(0, 8) || "-";
-    button.innerHTML = `
-      <div class="digest-run-time">${escapeHtml(formatDateTime(run.generated_at))}</div>
-      <div class="digest-run-meta">model=${escapeHtml(model)} · hash=${escapeHtml(hash)}</div>
-    `;
-    button.addEventListener("click", () => {
-      state.selectedDigestRunId = run.id;
-      renderDigestRuns();
-      renderSelectedDigest();
-    });
-    digestRunListEl.appendChild(button);
-  }
+  setStatus(`生成时间：${formatDateTime(digest.generated_at)}`);
+  digestEl.innerHTML = markdownToHtml(digest.markdown || "");
+  renderDigestMeta(digest);
 }
 
 function renderPipelineRuns() {
@@ -268,50 +225,6 @@ async function fetchPipelineRuns(config) {
     return [];
   }
   return response.json();
-}
-
-async function fetchDigestRuns(config) {
-  const url = new URL(`${config.supabaseUrl}/rest/v1/daily_digest_runs`);
-  url.searchParams.set(
-    "select",
-    "id,digest_date,title,markdown,json_summary,model,generated_at,markdown_hash,pipeline_run_id"
-  );
-  url.searchParams.set("order", "generated_at.desc");
-  url.searchParams.set("limit", "120");
-  const response = await fetch(url, {
-    headers: {
-      apikey: config.supabaseAnonKey,
-      authorization: `Bearer ${config.supabaseAnonKey}`,
-    },
-  });
-  if (!response.ok) {
-    return [];
-  }
-  return response.json();
-}
-
-function syncSelectedDigestRun() {
-  const selectedDate = state.selectedDate;
-  if (!selectedDate) {
-    state.selectedDigestRunId = null;
-    return;
-  }
-  const runs = state.digestRuns.filter((item) => item.digest_date === selectedDate);
-  if (!runs.length) {
-    state.selectedDigestRunId = null;
-    return;
-  }
-  const hasCurrent = runs.some((item) => item.id === state.selectedDigestRunId);
-  if (!hasCurrent) {
-    state.selectedDigestRunId = runs[0].id;
-  }
-}
-
-function getSelectedDigestRun() {
-  if (!state.selectedDigestRunId) {
-    return null;
-  }
-  return state.digestRuns.find((item) => item.id === state.selectedDigestRunId) || null;
 }
 
 function renderDigestMeta(digest) {
