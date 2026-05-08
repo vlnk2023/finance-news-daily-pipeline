@@ -353,7 +353,11 @@ class SupabaseStore:
         return response.json()
 
     def upsert_daily_digest(self, row: dict[str, Any]) -> None:
-        self._upsert("daily_digests", [row], on_conflict="digest_date")
+        payload = dict(row)
+        now_iso = _now_iso()
+        payload["generated_at"] = now_iso
+        payload["updated_at"] = now_iso
+        self._upsert("daily_digests", [payload], on_conflict="digest_date")
 
     def fetch_news_items_for_window(
         self,
