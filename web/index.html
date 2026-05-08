@@ -12,7 +12,10 @@
         <h1>Finance News Digest</h1>
         <p>Daily digest generated from the finance news pipeline.</p>
       </div>
-      <button id="refreshButton" type="button">Refresh</button>
+      <div class="topbar-actions">
+        <a class="nav-link" href="./admin.html">Admin</a>
+        <button id="refreshButton" type="button">Refresh</button>
+      </div>
     </header>
 
     <main class="layout">
@@ -20,37 +23,6 @@
         <div class="panel">
           <h2>Digest History</h2>
           <div id="digestList" class="digest-list"></div>
-        </div>
-        <div class="panel">
-          <h2>Pipeline Runs</h2>
-          <div id="pipelineRunList" class="run-list"></div>
-        </div>
-        <div class="panel">
-          <h2>Source Health</h2>
-          <div class="panel-tools">
-            <label>
-              Status
-              <select id="sourceHealthFilter">
-                <option value="all">All</option>
-                <option value="healthy_active">healthy_active</option>
-                <option value="healthy_quiet">healthy_quiet</option>
-                <option value="stale">stale</option>
-                <option value="no_data">no_data</option>
-                <option value="unknown">unknown</option>
-                <option value="disabled">disabled</option>
-              </select>
-            </label>
-            <label>
-              Sort
-              <select id="sourceHealthSort">
-                <option value="age_desc">age_hours desc</option>
-                <option value="age_asc">age_hours asc</option>
-                <option value="feed_asc">feed_id asc</option>
-                <option value="status">status group</option>
-              </select>
-            </label>
-          </div>
-          <div id="sourceHealthList" class="source-health-list"></div>
         </div>
       </aside>
 
@@ -89,6 +61,7 @@
     </main>
 
     <script src="./config.js"></script>
+    <script src="./shared.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Finance News Digest Admin</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>Digest Operations</h1>
+        <p>Read-only diagnostics for the finance news pipeline.</p>
+      </div>
+      <div class="topbar-actions">
+        <a class="nav-link" href="./index.html">Reader</a>
+        <button id="refreshButton" type="button">Refresh</button>
+      </div>
+    </header>
+
+    <main class="admin-layout">
+      <div id="status" class="status">Loading...</div>
+
+      <section class="panel admin-summary-panel">
+        <h2>Operational Summary</h2>
+        <div id="adminSummary" class="digest-meta admin-summary"></div>
+      </section>
+
+      <section class="admin-grid">
+        <section class="panel">
+          <h2>Pipeline Runs</h2>
+          <div id="pipelineRunList" class="run-list"></div>
+        </section>
+
+        <section class="panel">
+          <h2>Source Health</h2>
+          <div class="panel-tools source-health-tools">
+            <label>
+              Status
+              <select id="sourceHealthFilter">
+                <option value="all">All</option>
+                <option value="healthy_active">healthy_active</option>
+                <option value="healthy_quiet">healthy_quiet</option>
+                <option value="stale">stale</option>
+                <option value="no_data">no_data</option>
+                <option value="unknown">unknown</option>
+                <option value="disabled">disabled</option>
+              </select>
+            </label>
+            <label>
+              Sort
+              <select id="sourceHealthSort">
+                <option value="age_desc">age_hours desc</option>
+                <option value="age_asc">age_hours asc</option>
+                <option value="feed_asc">feed_id asc</option>
+                <option value="status">status group</option>
+              </select>
+            </label>
+            <label>
+              Date
+              <select id="sourceHealthDate"></select>
+            </label>
+          </div>
+          <div id="sourceHealthList" class="source-health-list"></div>
+        </section>
+      </section>
+    </main>
+
+    <script src="./config.js"></script>
+    <script src="./shared.js"></script>
+    <script src="./admin.js"></script>
+  </body>
+</html>
