@@ -49,11 +49,13 @@ jobs:
 
       - name: Verify Supabase public read surface
         run: |
-          BASE_TABLE_MODE="dontcare"
+          PUBLIC_VIEW_FLAG="--allow-missing-public-views"
+          BASE_TABLE_MODE="open"
           if [ "${{ secrets.SUPABASE_STRICT_PUBLIC_VIEWS }}" = "true" ]; then
+            PUBLIC_VIEW_FLAG=""
             BASE_TABLE_MODE="restricted"
           fi
-          python scripts/check_public_read_surface.py --base-table-mode "$BASE_TABLE_MODE"
+          python scripts/check_public_read_surface.py --base-table-mode "$BASE_TABLE_MODE" $PUBLIC_VIEW_FLAG
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}

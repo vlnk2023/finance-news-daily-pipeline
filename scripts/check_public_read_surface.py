@@ -84,6 +84,11 @@ def main() -> None:
         action="store_true",
         help="Exit successfully when SUPABASE_URL or SUPABASE_PUBLISHABLE_KEY is missing.",
     )
+    parser.add_argument(
+        "--allow-missing-public-views",
+        action="store_true",
+        help="Allow public_* views to be absent with 404 during fallback rollout.",
+    )
     parser.add_argument("--timeout-seconds", type=float, default=20.0)
     args = parser.parse_args()
 
@@ -115,6 +120,7 @@ def main() -> None:
             select="digest_date",
             timeout_seconds=args.timeout_seconds,
             should_be_open=True,
+            allow_missing=args.allow_missing_public_views,
         ),
         check_relation(
             session,
@@ -124,6 +130,7 @@ def main() -> None:
             select="job_type",
             timeout_seconds=args.timeout_seconds,
             should_be_open=True,
+            allow_missing=args.allow_missing_public_views,
         ),
         check_relation(
             session,
@@ -165,6 +172,7 @@ def check_relation(
     timeout_seconds: float,
     should_be_open: bool,
     skip_expectation: bool = False,
+    allow_missing: bool = False,
 ) -> RelationCheck:
     endpoint = f"{supabase_url}/rest/v1/{relation}"
     response = session.get(
@@ -174,6 +182,13 @@ def check_relation(
         timeout=timeout_seconds,
     )
     is_open = response.status_code == 200
+    if allow_missing and response.status_code == 404:
+        return RelationCheck(
+            relation=relation,
+            status_code=response.status_code,
+            ok=True,
+            detail="missing-allowed",
+        )
     if skip_expectation:
         return RelationCheck(
             relation=relation,

@@ -68,6 +68,35 @@ def test_check_relation_dontcare_mode() -> None:
     assert result.detail == "dontcare"
 
 
+def test_check_relation_allows_missing_public_view() -> None:
+    result = check_relation(
+        FakeSession(404),
+        "https://example.supabase.co",
+        {"apikey": "k", "authorization": "Bearer k"},
+        relation="public_daily_digests",
+        select="digest_date",
+        timeout_seconds=1,
+        should_be_open=True,
+        allow_missing=True,
+    )
+    assert result.ok is True
+    assert result.detail == "missing-allowed"
+
+
+def test_check_relation_does_not_allow_restricted_public_view() -> None:
+    result = check_relation(
+        FakeSession(401),
+        "https://example.supabase.co",
+        {"apikey": "k", "authorization": "Bearer k"},
+        relation="public_daily_digests",
+        select="digest_date",
+        timeout_seconds=1,
+        should_be_open=True,
+        allow_missing=True,
+    )
+    assert result.ok is False
+
+
 def test_main_skip_if_missing(monkeypatch, capsys) -> None:
     monkeypatch.setenv("SUPABASE_URL", "")
     monkeypatch.setenv("SUPABASE_PUBLISHABLE_KEY", "")
@@ -80,6 +109,7 @@ def test_main_skip_if_missing(monkeypatch, capsys) -> None:
             expect_base_table_open=False,
             base_table_mode="restricted",
             skip_if_missing=True,
+            allow_missing_public_views=False,
             timeout_seconds=1.0,
         ),
     )
@@ -100,6 +130,7 @@ def test_main_fail_if_missing_without_skip(monkeypatch) -> None:
             expect_base_table_open=False,
             base_table_mode="restricted",
             skip_if_missing=False,
+            allow_missing_public_views=False,
             timeout_seconds=1.0,
         ),
     )
