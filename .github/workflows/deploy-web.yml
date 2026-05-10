@@ -28,12 +28,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Generate frontend config
         run: |
           cat > web/config.js <<'EOF'
           window.FINANCE_DIGEST_CONFIG = {
             supabaseUrl: "${{ secrets.SUPABASE_URL }}",
             supabaseAnonKey: "${{ secrets.SUPABASE_PUBLISHABLE_KEY }}",
+            strictPublicViews: ${{ secrets.SUPABASE_STRICT_PUBLIC_VIEWS == 'true' && 'true' || 'false' }},
           };
           EOF
 
@@ -41,6 +46,17 @@ jobs:
         run: |
           test -n "${{ secrets.SUPABASE_URL }}"
           test -n "${{ secrets.SUPABASE_PUBLISHABLE_KEY }}"
+
+      - name: Verify Supabase public read surface
+        run: |
+          BASE_TABLE_MODE="dontcare"
+          if [ "${{ secrets.SUPABASE_STRICT_PUBLIC_VIEWS }}" = "true" ]; then
+            BASE_TABLE_MODE="restricted"
+          fi
+          python scripts/check_public_read_surface.py --base-table-mode "$BASE_TABLE_MODE"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
 
       - uses: actions/configure-pages@v5
 

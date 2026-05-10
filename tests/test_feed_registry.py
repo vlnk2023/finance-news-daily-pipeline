@@ -54,7 +54,28 @@ class FeedRegistryTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "missing required fields"):
                 FeedRegistry.from_path(registry_path)
 
+    def test_feed_registry_rejects_invalid_health_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            registry_path = Path(temp_dir) / "feed-registry.json"
+            registry_path.write_text(
+                json.dumps(
+                    [
+                        {
+                            "feed_id": "tg_enabled",
+                            "source_id": "tg_enabled",
+                            "source_name": "Enabled",
+                            "platform": "telegram",
+                            "url": "https://t.me/s/enabled",
+                            "health": {"expected_update_interval_hours": -1},
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "health.expected_update_interval_hours"):
+                FeedRegistry.from_path(registry_path)
+
 
 if __name__ == "__main__":
     unittest.main()
-

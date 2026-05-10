@@ -4,6 +4,53 @@ on:
   schedule:
     - cron: "30 12 * * *"
   workflow_dispatch:
+    inputs:
+      validation_mode:
+        description: "Mode when digest validation fails"
+        required: false
+        type: choice
+        default: degraded
+        options:
+          - degraded
+          - blocked
+      min_candidates:
+        description: "Minimum candidate count for digest gate"
+        required: false
+        type: string
+        default: "10"
+      min_translated_candidates:
+        description: "Minimum translated candidate count for digest gate"
+        required: false
+        type: string
+        default: "7"
+      min_coverage:
+        description: "Minimum translated coverage ratio (0-1)"
+        required: false
+        type: string
+        default: "0.7"
+      top_window:
+        description: "Top ranked candidate window for strict check"
+        required: false
+        type: string
+        default: "5"
+      min_top_translated:
+        description: "Minimum translated count inside top window"
+        required: false
+        type: string
+        default: "4"
+      allow_window_fallback:
+        description: "Allow digest to fallback to translated window"
+        required: false
+        type: choice
+        default: "false"
+        options:
+          - "false"
+          - "true"
+      min_interval_seconds:
+        description: "Global minimum interval between Telegram requests in async collect"
+        required: false
+        type: string
+        default: "1.0"
 
 jobs:
   collect:
@@ -30,7 +77,13 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Collect and write Supabase
-        run: python scripts/run_collector.py --date "$DIGEST_DATE" --async --max-concurrency 5 --write-supabase --verbose
+        run: python scripts/run_collector.py --date "$DIGEST_DATE" --async --max-concurrency 5 --min-interval-seconds "${{ inputs.min_interval_seconds || '1.0' }}" --write-supabase --verbose
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Audit source health
+        run: python scripts/audit_source_health.py --date "$DIGEST_DATE"
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -55,14 +108,44 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
+      - name: Validate digest inputs
+        run: python scripts/validate_digest_inputs.py --date "$DIGEST_DATE" --limit 40 --mode-on-fail "${{ inputs.validation_mode || 'degraded' }}" --min-candidates "${{ inputs.min_candidates || '10' }}" --min-translated-candidates "${{ inputs.min_translated_candidates || '7' }}" --min-coverage "${{ inputs.min_coverage || '0.7' }}" --top-window "${{ inputs.top_window || '5' }}" --min-top-translated "${{ inputs.min_top_translated || '4' }}" --write-github-env "$GITHUB_ENV"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
       - name: Generate daily digest
-        run: python scripts/generate_digest.py --date "$DIGEST_DATE" --use-candidates --verbose
+        run: |
+          WINDOW_FALLBACK_FLAG="--no-allow-window-fallback"
+          if [ "${{ inputs.allow_window_fallback || 'false' }}" = "true" ]; then
+            WINDOW_FALLBACK_FLAG="--allow-window-fallback"
+          fi
+          python scripts/generate_digest.py --date "$DIGEST_DATE" --use-candidates --validation-mode "${DIGEST_MODE:-normal}" --validation-reason "${DIGEST_VALIDATION_REASON:-}" ${WINDOW_FALLBACK_FLAG} --verbose
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DIGEST_PROVIDER: cloudflare
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      - name: Verify public read surface (optional)
+        run: |
+          BASE_TABLE_MODE="dontcare"
+          if [ "${{ secrets.SUPABASE_STRICT_PUBLIC_VIEWS }}" = "true" ]; then
+            BASE_TABLE_MODE="restricted"
+          fi
+          python scripts/check_public_read_surface.py --skip-if-missing --base-table-mode "$BASE_TABLE_MODE"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+
+      - name: Assert pipeline chain integrity
+        run: |
+          EXPECTED_MODE="${DIGEST_MODE:-any}"
+          python scripts/assert_chain_integrity.py --date "$DIGEST_DATE" --require-validation-mode "$EXPECTED_MODE"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Check DB state AFTER
         run: python scripts/check_state.py

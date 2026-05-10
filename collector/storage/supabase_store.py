@@ -13,6 +13,9 @@ import requests
 
 from collector.runner import FeedCollectionResult
 
+DEFAULT_UPSERT_BATCH_ROWS = 40
+DEFAULT_UPSERT_MAX_PAYLOAD_BYTES = 450_000
+
 
 class SupabaseConfigError(RuntimeError):
     """Raised when Supabase environment variables are missing."""
@@ -34,6 +37,8 @@ class SupabaseStore:
         service_role_key: str | None = None,
         timeout_seconds: float = 30,
         session: requests.Session | None = None,
+        upsert_batch_rows: int = DEFAULT_UPSERT_BATCH_ROWS,
+        upsert_max_payload_bytes: int = DEFAULT_UPSERT_MAX_PAYLOAD_BYTES,
     ) -> None:
         self.url = (url or os.environ.get("SUPABASE_URL") or "").rstrip("/")
         self.service_role_key = (
@@ -44,6 +49,8 @@ class SupabaseStore:
         )
         self.timeout_seconds = timeout_seconds
         self.session = session or requests.Session()
+        self.upsert_batch_rows = max(1, upsert_batch_rows)
+        self.upsert_max_payload_bytes = max(1024, upsert_max_payload_bytes)
 
         if not self.url or not self.service_role_key:
             raise SupabaseConfigError(
@@ -67,7 +74,7 @@ class SupabaseStore:
 
         sources_upserted = self._upsert("sources", source_rows, on_conflict="id")
 
-        existing_guids = self._fetch_existing_guids(
+        existing_items = self._fetch_existing_items(
             [row["guid"] for row in item_rows if row.get("guid")]
         )
 
@@ -75,12 +82,8 @@ class SupabaseStore:
         existing_item_rows = []
         for row in item_rows:
             guid = row.get("guid", "")
-            if guid and guid in existing_guids:
-                existing_status = existing_guids[guid]
-                row_copy = dict(row)
-                if existing_status in ("translated", "failed"):
-                    row_copy["translation_status"] = existing_status
-                existing_item_rows.append(row_copy)
+            if guid and guid in existing_items:
+                existing_item_rows.append(_merge_existing_item_row(row, existing_items[guid]))
             else:
                 new_item_rows.append(row)
 
@@ -92,12 +95,12 @@ class SupabaseStore:
             items_upserted=items_new + items_existing,
         )
 
-    def _fetch_existing_guids(self, guids: list[str]) -> dict[str, str]:
+    def _fetch_existing_items(self, guids: list[str]) -> dict[str, dict[str, Any]]:
         if not guids:
             return {}
 
         batch_size = 100
-        result = {}
+        result: dict[str, dict[str, Any]] = {}
         for i in range(0, len(guids), batch_size):
             batch = guids[i:i + batch_size]
             filter_value = ",".join(f'"{g}"' for g in batch)
@@ -105,7 +108,7 @@ class SupabaseStore:
             response = self.session.get(
                 endpoint,
                 params={
-                    "select": "guid,translation_status",
+                    "select": "guid,translation_status,source_lang,title_zh,summary_zh,content_hash",
                     "guid": f"in.({filter_value})",
                 },
                 headers=self._headers(),
@@ -113,7 +116,16 @@ class SupabaseStore:
             )
             response.raise_for_status()
             for row in response.json():
-                result[row["guid"]] = row.get("translation_status", "pending")
+                guid = str(row.get("guid") or "")
+                if not guid:
+                    continue
+                result[guid] = {
+                    "translation_status": row.get("translation_status", "pending"),
+                    "source_lang": row.get("source_lang"),
+                    "title_zh": row.get("title_zh"),
+                    "summary_zh": row.get("summary_zh"),
+                    "content_hash": row.get("content_hash"),
+                }
         return result
 
     def _upsert(self, table: str, rows: list[dict[str, Any]], *, on_conflict: str) -> int:
@@ -121,20 +133,27 @@ class SupabaseStore:
             return 0
 
         endpoint = f"{self.url}/rest/v1/{table}"
-        response = self.session.post(
-            endpoint,
-            params={"on_conflict": on_conflict},
-            headers={
-                "apikey": self.service_role_key,
-                "authorization": f"Bearer {self.service_role_key}",
-                "content-type": "application/json",
-                "prefer": "resolution=merge-duplicates,return=minimal",
-            },
-            data=json.dumps(rows, ensure_ascii=False),
-            timeout=self.timeout_seconds,
-        )
-        response.raise_for_status()
-        return len(rows)
+        total = 0
+        for batch in _iter_payload_batches(
+            rows,
+            max_rows=self.upsert_batch_rows,
+            max_payload_bytes=self.upsert_max_payload_bytes,
+        ):
+            response = self.session.post(
+                endpoint,
+                params={"on_conflict": on_conflict},
+                headers={
+                    "apikey": self.service_role_key,
+                    "authorization": f"Bearer {self.service_role_key}",
+                    "content-type": "application/json",
+                    "prefer": "resolution=merge-duplicates,return=minimal",
+                },
+                data=json.dumps(batch, ensure_ascii=False),
+                timeout=self.timeout_seconds,
+            )
+            response.raise_for_status()
+            total += len(batch)
+        return total
 
     def create_pipeline_run(
         self,
@@ -553,6 +572,65 @@ def _item_row(item: dict[str, Any]) -> dict[str, Any]:
         "raw_json": item,
         "updated_at": _now_iso(),
     }
+
+
+def _merge_existing_item_row(
+    incoming: dict[str, Any],
+    existing: dict[str, Any],
+) -> dict[str, Any]:
+    """Keep collector ownership while preserving translation ownership."""
+    merged = dict(incoming)
+    incoming_hash = str(merged.get("content_hash") or "")
+    existing_hash = str(existing.get("content_hash") or "")
+    content_changed = bool(incoming_hash and existing_hash and incoming_hash != existing_hash)
+
+    if content_changed:
+        merged["translation_status"] = "pending"
+        merged["source_lang"] = None
+        merged["title_zh"] = None
+        merged["summary_zh"] = None
+        return merged
+
+    existing_status = str(existing.get("translation_status") or "pending")
+    if existing_status in ("translated", "failed"):
+        merged["translation_status"] = existing_status
+    if not merged.get("source_lang") and existing.get("source_lang"):
+        merged["source_lang"] = existing.get("source_lang")
+    if not merged.get("title_zh") and existing.get("title_zh"):
+        merged["title_zh"] = existing.get("title_zh")
+    if not merged.get("summary_zh") and existing.get("summary_zh"):
+        merged["summary_zh"] = existing.get("summary_zh")
+    return merged
+
+
+def _iter_payload_batches(
+    rows: list[dict[str, Any]],
+    *,
+    max_rows: int,
+    max_payload_bytes: int,
+) -> list[list[dict[str, Any]]]:
+    batches: list[list[dict[str, Any]]] = []
+    batch: list[dict[str, Any]] = []
+    batch_bytes = 2
+
+    for row in rows:
+        row_bytes = len(json.dumps(row, ensure_ascii=False).encode("utf-8"))
+        separator_bytes = 1 if batch else 0
+        would_exceed_rows = len(batch) >= max_rows
+        would_exceed_bytes = batch_bytes + separator_bytes + row_bytes > max_payload_bytes
+
+        if batch and (would_exceed_rows or would_exceed_bytes):
+            batches.append(batch)
+            batch = []
+            batch_bytes = 2
+            separator_bytes = 0
+
+        batch.append(row)
+        batch_bytes += separator_bytes + row_bytes
+
+    if batch:
+        batches.append(batch)
+    return batches
 
 
 def _content_hash(*parts: str) -> str:

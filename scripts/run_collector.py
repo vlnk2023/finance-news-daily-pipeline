@@ -39,6 +39,12 @@ def main() -> None:
         help="Collect feeds concurrently.",
     )
     parser.add_argument("--max-concurrency", type=int, default=5)
+    parser.add_argument(
+        "--min-interval-seconds",
+        type=float,
+        default=1.0,
+        help="Global minimum interval between Telegram requests in async mode.",
+    )
     parser.add_argument("--json", action="store_true", help="Print collected items as JSON.")
     parser.add_argument(
         "--results-json",
@@ -70,6 +76,7 @@ def main() -> None:
             "write_supabase": bool(args.write_supabase),
             "feed_id": args.feed_id or "",
             "digest_date": digest_date.isoformat(),
+            "min_interval_seconds": args.min_interval_seconds,
         },
     ) as run_stats:
         feeds = load_enabled_feeds(args.registry, platform="telegram")
@@ -78,7 +85,10 @@ def main() -> None:
 
         if args.run_async:
             results = asyncio.run(
-                AsyncCollectionRunner(max_concurrency=args.max_concurrency).collect_feeds(feeds)
+                AsyncCollectionRunner(
+                    max_concurrency=args.max_concurrency,
+                    min_interval_seconds=args.min_interval_seconds,
+                ).collect_feeds(feeds)
             )
         else:
             results = CollectionRunner().collect_feeds(feeds)

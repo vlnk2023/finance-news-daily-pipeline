@@ -61,6 +61,23 @@ def main() -> None:
         choices=["cloudflare", "rule-based"],
         default=os.environ.get("DIGEST_PROVIDER", "cloudflare"),
     )
+    parser.add_argument(
+        "--validation-mode",
+        choices=["normal", "degraded", "blocked"],
+        default=os.environ.get("DIGEST_MODE", "normal"),
+        help="Pre-validated digest mode from upstream gate.",
+    )
+    parser.add_argument(
+        "--validation-reason",
+        default=os.environ.get("DIGEST_VALIDATION_REASON", ""),
+        help="Pre-validated reason supplied by upstream gate.",
+    )
+    parser.add_argument(
+        "--allow-window-fallback",
+        action=argparse.BooleanOptionalAction,
+        default=(os.environ.get("DIGEST_ALLOW_WINDOW_FALLBACK", "0") == "1"),
+        help="Allow candidate mode to fallback to translated window when thresholds are not met.",
+    )
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
 
@@ -78,14 +95,19 @@ def main() -> None:
             "digest_date": digest_date.isoformat(),
             "provider": args.provider,
             "use_candidates_requested": bool(args.use_candidates),
+            "validation_mode": args.validation_mode,
         },
     ) as run_stats:
         store = SupabaseStore()
+        if args.validation_mode == "blocked":
+            reason = args.validation_reason or "digest validation gate blocked publish"
+            run_stats["validation_reason"] = reason
+            raise RuntimeError(reason)
 
         use_candidates = args.use_candidates
         candidate_coverage: float | None = None
         candidate_count = 0
-        fallback_reason: str | None = None
+        fallback_reason: str | None = args.validation_reason or None
 
         if args.use_candidates:
             candidate_items = store.fetch_digest_candidate_items(
@@ -114,12 +136,19 @@ def main() -> None:
             if use_candidates:
                 items = candidate_items
             else:
-                print(f"[DIGEST] fallback to translated-window mode reason={fallback_reason}")
-                items = store.fetch_digest_items(
-                    start_at=start_at.isoformat(),
-                    end_at=end_at.isoformat(),
-                    limit=args.limit,
-                )
+                if args.allow_window_fallback:
+                    print(f"[DIGEST] fallback to translated-window mode reason={fallback_reason}")
+                    items = store.fetch_digest_items(
+                        start_at=start_at.isoformat(),
+                        end_at=end_at.isoformat(),
+                        limit=args.limit,
+                    )
+                else:
+                    print(
+                        "[DIGEST] thresholds unmet; retaining candidate pool because "
+                        f"--allow-window-fallback is disabled reason={fallback_reason}"
+                    )
+                    items = candidate_items
         else:
             items = store.fetch_digest_items(
                 start_at=start_at.isoformat(),
@@ -165,6 +194,8 @@ def main() -> None:
                 "candidate_coverage": candidate_coverage,
                 "fallback_reason": fallback_reason or "",
                 "model": digest["model"],
+                "validation_mode": args.validation_mode,
+                "validation_reason": args.validation_reason or "",
             }
         )
         print(f"[DIGEST] upserted daily_digest date={digest_date} model={digest['model']}")

@@ -38,6 +38,12 @@ Then process the first translation state pass:
 python scripts/translate.py
 ```
 
+Verify the end-to-end chain for a digest date:
+
+```bash
+python scripts/assert_chain_integrity.py --date 2026-05-08 --require-validation-mode any
+```
+
 Non-Chinese items are translated with Cloudflare Workers AI
 `@cf/meta/m2m100-1.2b` when `CLOUDFLARE_ACCOUNT_ID` and
 `CLOUDFLARE_API_TOKEN` are configured.

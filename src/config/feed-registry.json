@@ -8,12 +8,19 @@
     "format": "auto",
     "language_hint": "zh",
     "tier": "B",
-    "topic_hints": ["business", "policy", "trade"],
+    "topic_hints": [
+      "business",
+      "policy",
+      "trade"
+    ],
     "region_hints": [],
     "enabled": true,
     "collect": {
       "runs_per_day": 2,
-      "scheduled_times_local": ["08:00", "20:00"],
+      "scheduled_times_local": [
+        "08:00",
+        "20:00"
+      ],
       "timezone": "Asia/Shanghai",
       "lookback_hours": 24,
       "max_items_per_run": 20,
@@ -24,6 +31,11 @@
       "filter_policy": "full_text",
       "allow_publish": true,
       "max_public_items_per_day": 5
+    },
+    "health": {
+      "cadence": "active_daily",
+      "expected_update_interval_hours": 48,
+      "stale_after_hours": 96.0
     }
   },
   {
@@ -35,12 +47,21 @@
     "format": "auto",
     "language_hint": "ru",
     "tier": "C",
-    "topic_hints": ["vpn", "telegram", "internet-access"],
-    "region_hints": ["ru"],
+    "topic_hints": [
+      "vpn",
+      "telegram",
+      "internet-access"
+    ],
+    "region_hints": [
+      "ru"
+    ],
     "enabled": true,
     "collect": {
       "runs_per_day": 2,
-      "scheduled_times_local": ["08:00", "20:00"],
+      "scheduled_times_local": [
+        "08:00",
+        "20:00"
+      ],
       "timezone": "Asia/Shanghai",
       "lookback_hours": null,
       "max_items_per_run": 20,
@@ -51,6 +72,11 @@
       "filter_policy": "full_text",
       "allow_publish": true,
       "max_public_items_per_day": 5
+    },
+    "health": {
+      "cadence": "active_daily",
+      "expected_update_interval_hours": 48,
+      "stale_after_hours": 96.0
     }
   },
   {
@@ -62,12 +88,19 @@
     "format": "auto",
     "language_hint": "ru",
     "tier": "C",
-    "topic_hints": ["ai", "technology"],
-    "region_hints": ["ru"],
+    "topic_hints": [
+      "ai",
+      "technology"
+    ],
+    "region_hints": [
+      "ru"
+    ],
     "enabled": true,
     "collect": {
       "runs_per_day": 1,
-      "scheduled_times_local": ["20:00"],
+      "scheduled_times_local": [
+        "20:00"
+      ],
       "timezone": "Asia/Shanghai",
       "lookback_hours": null,
       "max_items_per_run": 10,
@@ -78,6 +111,11 @@
       "filter_policy": "full_text",
       "allow_publish": true,
       "max_public_items_per_day": 3
+    },
+    "health": {
+      "cadence": "active_weekly",
+      "expected_update_interval_hours": 240,
+      "stale_after_hours": 480.0
     }
   },
   {
@@ -89,12 +127,17 @@
     "format": "auto",
     "language_hint": "en",
     "tier": "C",
-    "topic_hints": ["vpn", "internet-access"],
+    "topic_hints": [
+      "vpn",
+      "internet-access"
+    ],
     "region_hints": [],
     "enabled": true,
     "collect": {
       "runs_per_day": 1,
-      "scheduled_times_local": ["20:00"],
+      "scheduled_times_local": [
+        "20:00"
+      ],
       "timezone": "Asia/Shanghai",
       "lookback_hours": null,
       "max_items_per_run": 10,
@@ -105,6 +148,11 @@
       "filter_policy": "full_text",
       "allow_publish": true,
       "max_public_items_per_day": 3
+    },
+    "health": {
+      "cadence": "active_weekly",
+      "expected_update_interval_hours": 240,
+      "stale_after_hours": 480.0
     }
   },
   {
@@ -116,12 +164,21 @@
     "format": "auto",
     "language_hint": "en",
     "tier": "B",
-    "topic_hints": ["business", "markets", "policy"],
-    "region_hints": ["global"],
+    "topic_hints": [
+      "business",
+      "markets",
+      "policy"
+    ],
+    "region_hints": [
+      "global"
+    ],
     "enabled": true,
     "collect": {
       "runs_per_day": 2,
-      "scheduled_times_local": ["08:00", "20:00"],
+      "scheduled_times_local": [
+        "08:00",
+        "20:00"
+      ],
       "timezone": "Asia/Shanghai",
       "lookback_hours": null,
       "max_items_per_run": 20,
@@ -132,6 +189,11 @@
       "filter_policy": "full_text",
       "allow_publish": true,
       "max_public_items_per_day": 5
+    },
+    "health": {
+      "cadence": "active_daily",
+      "expected_update_interval_hours": 48,
+      "stale_after_hours": 96.0
     }
   },
   {
@@ -143,12 +205,19 @@
     "format": "auto",
     "language_hint": "zh",
     "tier": "B",
-    "topic_hints": ["cybersecurity", "technology"],
-    "region_hints": ["cn"],
+    "topic_hints": [
+      "cybersecurity",
+      "technology"
+    ],
+    "region_hints": [
+      "cn"
+    ],
     "enabled": true,
     "collect": {
       "runs_per_day": 1,
-      "scheduled_times_local": ["20:00"],
+      "scheduled_times_local": [
+        "20:00"
+      ],
       "timezone": "Asia/Shanghai",
       "lookback_hours": null,
       "max_items_per_run": 20,
@@ -159,6 +228,11 @@
       "filter_policy": "full_text",
       "allow_publish": true,
       "max_public_items_per_day": 5
+    },
+    "health": {
+      "cadence": "active_weekly",
+      "expected_update_interval_hours": 240,
+      "stale_after_hours": 480.0
     }
   },
   {
@@ -170,12 +244,19 @@
     "format": "auto",
     "language_hint": "zh",
     "tier": "C",
-    "topic_hints": ["technology", "software"],
-    "region_hints": ["cn"],
+    "topic_hints": [
+      "technology",
+      "software"
+    ],
+    "region_hints": [
+      "cn"
+    ],
     "enabled": true,
     "collect": {
       "runs_per_day": 1,
-      "scheduled_times_local": ["20:00"],
+      "scheduled_times_local": [
+        "20:00"
+      ],
       "timezone": "Asia/Shanghai",
       "lookback_hours": null,
       "max_items_per_run": 20,
@@ -186,6 +267,11 @@
       "filter_policy": "full_text",
       "allow_publish": true,
       "max_public_items_per_day": 5
+    },
+    "health": {
+      "cadence": "active_weekly",
+      "expected_update_interval_hours": 240,
+      "stale_after_hours": 480.0
     }
   },
   {
@@ -197,12 +283,19 @@
     "format": "auto",
     "language_hint": "en",
     "tier": "C",
-    "topic_hints": ["business", "markets"],
-    "region_hints": ["global"],
+    "topic_hints": [
+      "business",
+      "markets"
+    ],
+    "region_hints": [
+      "global"
+    ],
     "enabled": true,
     "collect": {
       "runs_per_day": 1,
-      "scheduled_times_local": ["20:00"],
+      "scheduled_times_local": [
+        "20:00"
+      ],
       "timezone": "Asia/Shanghai",
       "lookback_hours": null,
       "max_items_per_run": 10,
@@ -213,6 +306,11 @@
       "filter_policy": "full_text",
       "allow_publish": true,
       "max_public_items_per_day": 3
+    },
+    "health": {
+      "cadence": "active_weekly",
+      "expected_update_interval_hours": 240,
+      "stale_after_hours": 480.0
     }
   },
   {
@@ -224,12 +322,22 @@
     "format": "auto",
     "language_hint": "ru",
     "tier": "B",
-    "topic_hints": ["business", "markets", "energy"],
-    "region_hints": ["global", "ru"],
+    "topic_hints": [
+      "business",
+      "markets",
+      "energy"
+    ],
+    "region_hints": [
+      "global",
+      "ru"
+    ],
     "enabled": true,
     "collect": {
       "runs_per_day": 2,
-      "scheduled_times_local": ["08:00", "20:00"],
+      "scheduled_times_local": [
+        "08:00",
+        "20:00"
+      ],
       "timezone": "Asia/Shanghai",
       "lookback_hours": 48,
       "max_items_per_run": 20,
@@ -240,6 +348,11 @@
       "filter_policy": "full_text",
       "allow_publish": true,
       "max_public_items_per_day": 5
+    },
+    "health": {
+      "cadence": "active_daily",
+      "expected_update_interval_hours": 48,
+      "stale_after_hours": 96.0
     }
   },
   {
@@ -251,12 +364,20 @@
     "format": "auto",
     "language_hint": "en",
     "tier": "C",
-    "topic_hints": ["business", "markets", "india"],
-    "region_hints": ["in"],
+    "topic_hints": [
+      "business",
+      "markets",
+      "india"
+    ],
+    "region_hints": [
+      "in"
+    ],
     "enabled": true,
     "collect": {
       "runs_per_day": 1,
-      "scheduled_times_local": ["20:00"],
+      "scheduled_times_local": [
+        "20:00"
+      ],
       "timezone": "Asia/Shanghai",
       "lookback_hours": null,
       "max_items_per_run": 20,
@@ -267,6 +388,11 @@
       "filter_policy": "full_text",
       "allow_publish": true,
       "max_public_items_per_day": 5
+    },
+    "health": {
+      "cadence": "active_weekly",
+      "expected_update_interval_hours": 240,
+      "stale_after_hours": 480.0
     }
   }
 ]

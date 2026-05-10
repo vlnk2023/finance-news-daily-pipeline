@@ -60,3 +60,24 @@ def _validate_feed(feed: dict[str, Any], index: int) -> None:
     if collect is not None and not isinstance(collect, dict):
         raise ValueError(f"feed registry item {index} collect must be an object")
 
+    health = feed.get("health")
+    if health is not None and not isinstance(health, dict):
+        raise ValueError(f"feed registry item {index} health must be an object")
+    if isinstance(health, dict):
+        cadence = health.get("cadence")
+        if cadence is not None and not isinstance(cadence, str):
+            raise ValueError(f"feed registry item {index} health.cadence must be a string")
+        for key in ("expected_update_interval_hours", "stale_after_hours"):
+            value = health.get(key)
+            if value is None:
+                continue
+            try:
+                numeric = float(value)
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"feed registry item {index} health.{key} must be numeric"
+                ) from None
+            if numeric <= 0:
+                raise ValueError(
+                    f"feed registry item {index} health.{key} must be > 0"
+                )

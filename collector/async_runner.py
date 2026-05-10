@@ -8,6 +8,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+from collector.fetchers.telegram_fetcher import TelegramFetcher
+from collector.rate_limiter import InProcessRateLimiter, RateLimiter
 from collector.runner import CollectionRunner, FeedCollectionResult
 
 
@@ -40,9 +42,15 @@ class AsyncCollectionRunner:
         *,
         max_concurrency: int = 5,
         runner_factory: Any = CollectionRunner,
+        min_interval_seconds: float = 1.0,
+        shared_rate_limiter: RateLimiter | None = None,
     ) -> None:
         self.max_concurrency = max(max_concurrency, 1)
         self.runner_factory = runner_factory
+        self.min_interval_seconds = max(min_interval_seconds, 0.0)
+        self.shared_rate_limiter = shared_rate_limiter or InProcessRateLimiter(
+            self.min_interval_seconds
+        )
 
     async def collect_feeds(
         self,
@@ -68,7 +76,7 @@ class AsyncCollectionRunner:
         executor: ThreadPoolExecutor | None = None,
     ) -> FeedCollectionResult | FeedCollectionError:
         try:
-            runner = self.runner_factory()
+            runner = self._build_runner()
             loop = asyncio.get_running_loop()
             return await loop.run_in_executor(executor, runner.collect_feed, feed)
         except Exception as exc:
@@ -82,3 +90,15 @@ class AsyncCollectionRunner:
 
     def _should_collect(self, feed: dict[str, Any]) -> bool:
         return feed.get("enabled", True) and feed.get("platform") == "telegram"
+
+    def _build_runner(self) -> Any:
+        fetcher = TelegramFetcher(
+            min_interval_seconds=self.min_interval_seconds,
+            rate_limiter=self.shared_rate_limiter,
+        )
+        try:
+            return self.runner_factory(fetcher=fetcher)
+        except TypeError:
+            # Compatibility path for test fakes or custom runner factories that
+            # do not accept keyword dependencies.
+            return self.runner_factory()
